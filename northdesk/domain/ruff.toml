@@ -1,5 +1,6 @@
 # The domain is pure: dataclasses and rules, no frameworks, no I/O, no other northdesk layers.
-# This table REPLACES the root banned-api table, so it repeats the root bans.
+# This table REPLACES the root banned-api table: it repeats every root ban except the ones this directory
+# lifts, listed in EXEMPT in tests/unit/test_import_rules.py (which checks it).
 extend = "../../pyproject.toml"
 
 [lint.flake8-tidy-imports.banned-api]

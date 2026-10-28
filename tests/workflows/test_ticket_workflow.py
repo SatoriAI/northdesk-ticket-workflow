@@ -1,4 +1,5 @@
-"""The workflow on Temporal's time-skipping server, with stub activities: every branch the brief lists."""
+"""The workflow on Temporal's time-skipping server, with stub activities: answered, approved, rejected, approval
+timeout, retries, unknown customer, agent failure, cancellation and failure."""
 
 import asyncio
 import uuid

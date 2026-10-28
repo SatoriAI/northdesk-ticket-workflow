@@ -17,6 +17,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "asgi-lifespan>=2.1.0",
+    "httpx2>=2.16",
     "mypy>=2.4.0",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",

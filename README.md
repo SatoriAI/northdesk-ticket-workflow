@@ -132,13 +132,15 @@ the current code and catches this.
 | Step | Timeout | Retries | When they run out |
 | --- | --- | --- | --- |
 | `load_context` | 10 s | 3 attempts, from 1 s | the ticket fails at `loading_context`; an unknown customer is non-retryable and escalates |
-| `decide` | 4 min for the loop, 30 s per model call | 6 attempts, 2 s doubling to 30 s (about a minute in all) | escalates: "the agent could not decide (…)" |
+| `decide` | 7 min for the loop, 60 s per model call | 6 attempts, 2 s doubling to 30 s (about a minute in all) | escalates: "the agent could not decide (…)" |
 | approval | 24 h | | escalates: "refund not approved within 24 h" |
 | `act` | 15 s (helpdesk HTTP: 5 s) | 10 attempts, 1 s doubling to 20 s | **the ticket fails** (step `failed`), naming the helpdesk key to check |
 
 Non-retryable errors are `ApplicationError(non_retryable=True)`: an unknown customer, a model that gives no valid
 decision within 6 turns, an LLM request rejected outright (bad key, bad request, refusal), and a helpdesk 4xx other
 than 408/409/429. SDK retries are off on both clients, so Temporal's policies are the only retry layer.
+
+A ticket cancelled from outside (e.g. `temporal workflow cancel`) ends at step `cancelled`.
 
 When `act` runs out of attempts the workflow fails rather than escalates, on purpose: every attempt may have been
 performed with only its response lost, so the outcome is unknown, and a fallback action could double up.
@@ -231,8 +233,8 @@ code, not the author's explanation of it.
 - The fake helpdesk is not production-grade: one SQLite file, one lock, no authentication.
 - Real-LLM mode has not been run with a real key here. To check it: `LLM_MODE=real LLM_API_KEY=… docker compose up
   --build`, post T-1, and `GET /tickets/T-1` should show `account / normal / reply` citing KB-1. If model calls come
-  close to the 30 s per-call timeout, raise `LLM_TIMEOUT_SECONDS` (a timeout restarts the whole agent loop; keep six
-  calls within the 4 min loop budget).
+  close to the 60 s per-call timeout, raise `LLM_TIMEOUT_SECONDS` (a timeout restarts the whole agent loop; keep six
+  calls within the 7 min loop budget, which a test checks for the defaults).
 - The approval response shows the state at the moment the answer is accepted (`awaiting_approval`, approval set);
   the workflow moves on right after. Making the handler wait for the next step changed the recorded history and
   failed the replay test, so it was not done.
@@ -245,7 +247,7 @@ code, not the author's explanation of it.
   history per new branch to the replay test.
 - Authentication in front of the API; OpenTelemetry tracing; a real helpdesk client.
 
-## Configuration
+## 10. Configuration
 
 Every setting is listed by name in [`.env.example`](.env.example); empty means "use the default", and the defaults
 live in `northdesk/settings.py` and `helpdesk/app.py`.
@@ -256,8 +258,11 @@ live in `northdesk/settings.py` and `helpdesk/app.py`.
 | `LLM_PROVIDER` | `anthropic` | the provider switch; Anthropic is the one implemented |
 | `LLM_API_KEY` | (empty) | required only when `LLM_MODE=real`; never commit it |
 | `LLM_MODEL` | `claude-opus-5-5` | |
-| `LLM_TIMEOUT_SECONDS` | `30` | per model call; the whole loop has 4 min |
+| `LLM_TIMEOUT_SECONDS` | `60` | per model call; the whole loop has 7 min |
 | `TEMPORAL_ADDRESS` | `localhost:7233` | `temporal:7233` in Compose |
-| `HELPDESK_URL` | `http://localhost:8001` | |
+| `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE` | `default`, `northdesk-tickets` | |
+| `HELPDESK_URL` | `http://localhost:8001` | the worker's helpdesk client |
+| `HELPDESK_TIMEOUT_SECONDS` | `5` | per helpdesk request; `act` allows 15 s per attempt |
+| `HELPDESK_DB_PATH` | `helpdesk.sqlite3` | the fake helpdesk's SQLite file (`/data/...` in Compose) |
 | `HELPDESK_FAILURE_RATE`, `HELPDESK_LOST_RESPONSE_RATE`, `HELPDESK_SEED` | `0`, `0`, none | Compose sets 0.2, 0.2 and 7 |
 | `ENABLE_DOCS` | `false` | Compose turns Swagger on |

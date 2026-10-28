@@ -1,4 +1,4 @@
-"""The brief's idempotency test: the helpdesk commits a refund and loses the response; after Temporal retries
+"""Idempotency end to end: the helpdesk commits a refund and loses the response; after Temporal retries
 the real act activity, exactly one refund exists."""
 
 import uuid

@@ -1,5 +1,6 @@
 # Workflows and activities are the Temporal layer: Temporal is allowed here, FastAPI still is not.
-# This table REPLACES the root banned-api table rather than extending it: keep every root ban except temporalio.
+# This table REPLACES the root banned-api table: it repeats every root ban except the ones this directory
+# lifts, listed in EXEMPT in tests/unit/test_import_rules.py (which checks it).
 extend = "../../pyproject.toml"
 
 [lint.flake8-tidy-imports.banned-api]

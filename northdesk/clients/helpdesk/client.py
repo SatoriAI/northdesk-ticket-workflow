@@ -32,11 +32,18 @@ class HelpdeskClient:
     def __init__(self, http: httpx.AsyncClient) -> None:
         self._http = http
 
-    async def perform(self, *, idempotency_key: str, ticket_id: str, command: Command) -> HelpdeskReceipt:
+    async def perform(
+        self, *, idempotency_key: str, ticket_id: str, workflow_id: str, command: Command
+    ) -> HelpdeskReceipt:
         try:
             response = await self._http.post(
                 "/actions",
-                json={"ticket_id": ticket_id, "action": command.action.value, "details": _details(command)},
+                json={
+                    "ticket_id": ticket_id,
+                    "workflow_id": workflow_id,  # for the helpdesk's logs; the idempotency key stays opaque
+                    "action": command.action.value,
+                    "details": _details(command),
+                },
                 headers={"Idempotency-Key": idempotency_key},
             )
         except httpx.TransportError as exc:

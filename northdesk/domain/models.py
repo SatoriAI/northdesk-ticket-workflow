@@ -81,7 +81,7 @@ class TicketContext:
 
     customer: Customer
     invoices: list[Invoice]  # this customer's only: other customers' data never enters the workflow
-    # Fields added after the first release default, so payloads written by older workflows still decode.
+    # Fields added to a type that crosses Temporal get a default, so payloads written before they existed decode.
     kb_article_ids: list[str] = field(default_factory=list)
 
 
@@ -142,7 +142,8 @@ class TicketState:
 
     step: Step = Step.RECEIVED
     decision: Decision | None = None  # what the agent proposed
-    command: Command | None = None  # what validation allowed to be carried out
+    command: Command | None = None  # what was carried out: the validated decision, or the workflow's own
+    # escalation (unknown customer, agent failure, validation, approval timeout) or decline reply
     approval: ApprovalRequest | None = None  # for a refund: the person's answer, once given
     result: ActionResult | None = None
     history: list[HistoryEntry] = field(default_factory=list)

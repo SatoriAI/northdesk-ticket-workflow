@@ -1,4 +1,5 @@
-"""Section 6 of the brief, in fake LLM mode: the fake drives the real loop and tools, then validation runs."""
+"""The expected outcomes of the sample tickets in fake LLM mode: the fake drives the real loop and tools, then
+validation runs."""
 
 from decimal import Decimal
 

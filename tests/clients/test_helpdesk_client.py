@@ -18,7 +18,9 @@ def client_for(handler: Callable[[httpx.Request], httpx.Response]) -> HelpdeskCl
 
 
 async def perform(handler: Callable[[httpx.Request], httpx.Response]) -> HelpdeskReceipt:
-    return await client_for(handler).perform(idempotency_key="ticket-T-2:refund", ticket_id="T-2", command=REFUND)
+    return await client_for(handler).perform(
+        idempotency_key="ticket-T-2:refund", ticket_id="T-2", workflow_id="ticket-T-2", command=REFUND
+    )
 
 
 async def test_perform__sends_key_and_exact_amount() -> None:
@@ -34,6 +36,7 @@ async def test_perform__sends_key_and_exact_amount() -> None:
     assert sent[0].headers["Idempotency-Key"] == "ticket-T-2:refund"
     assert json.loads(sent[0].content) == {
         "ticket_id": "T-2",
+        "workflow_id": "ticket-T-2",
         "action": "refund",
         "details": {"category": "billing", "priority": "normal", "invoice_id": "INV-1002", "amount_eur": "49.00"},
     }

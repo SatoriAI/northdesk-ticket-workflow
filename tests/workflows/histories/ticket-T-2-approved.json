@@ -25,7 +25,7 @@
         "workflowRunTimeout": "315360000s",
         "workflowTaskTimeout": "10s",
         "originalExecutionRunId": "9720f17b-223c-48b7-9fd4-ade62c371625",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "firstExecutionRunId": "9720f17b-223c-48b7-9fd4-ade62c371625",
         "attempt": 1,
         "firstWorkflowTaskBackoff": "0s",
@@ -50,7 +50,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "2",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "historySizeBytes": "375"
       }
     },
@@ -60,7 +60,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "2",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "binaryChecksum": "d46b27cd6a737d7fede83092cd12f590",
         "sdkMetadata": {
           "coreUsedFlags": [
@@ -130,7 +130,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "6",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "historySizeBytes": "842"
       }
     },
@@ -140,7 +140,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "6",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "binaryChecksum": "d46b27cd6a737d7fede83092cd12f590",
         "sdkMetadata": {},
         "meteringMetadata": {}
@@ -152,7 +152,7 @@
       "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
       "activityTaskStartedEventAttributes": {
         "scheduledEventId": "5",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "attempt": 1
       }
     },
@@ -173,7 +173,7 @@
         },
         "scheduledEventId": "5",
         "startedEventId": "8",
-        "identity": "92283@MacBook-Pro-Dawid.local"
+        "identity": "test-worker"
       }
     },
     {
@@ -194,7 +194,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "11",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "historySizeBytes": "1416"
       }
     },
@@ -204,7 +204,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "11",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "binaryChecksum": "d46b27cd6a737d7fede83092cd12f590",
         "sdkMetadata": {},
         "meteringMetadata": {}
@@ -254,7 +254,7 @@
       "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
       "activityTaskStartedEventAttributes": {
         "scheduledEventId": "14",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "attempt": 1
       }
     },
@@ -275,7 +275,7 @@
         },
         "scheduledEventId": "14",
         "startedEventId": "15",
-        "identity": "92283@MacBook-Pro-Dawid.local"
+        "identity": "test-worker"
       }
     },
     {
@@ -296,7 +296,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "17",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "historySizeBytes": "2406"
       }
     },
@@ -306,7 +306,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "17",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "binaryChecksum": "d46b27cd6a737d7fede83092cd12f590",
         "sdkMetadata": {},
         "meteringMetadata": {}
@@ -340,7 +340,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "21",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "historySizeBytes": "2627"
       }
     },
@@ -350,7 +350,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "21",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "binaryChecksum": "d46b27cd6a737d7fede83092cd12f590",
         "sdkMetadata": {},
         "meteringMetadata": {}
@@ -367,7 +367,7 @@
         "acceptedRequest": {
           "meta": {
             "updateId": "c20e1d11-07f2-4e37-bf46-7b326d4c13f7",
-            "identity": "92283@MacBook-Pro-Dawid.local"
+            "identity": "test-worker"
           },
           "input": {
             "name": "approval",
@@ -392,7 +392,7 @@
       "workflowExecutionUpdateCompletedEventAttributes": {
         "meta": {
           "updateId": "c20e1d11-07f2-4e37-bf46-7b326d4c13f7",
-          "identity": "92283@MacBook-Pro-Dawid.local"
+          "identity": "test-worker"
         },
         "outcome": {
           "success": {
@@ -462,7 +462,7 @@
       "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
       "activityTaskStartedEventAttributes": {
         "scheduledEventId": "27",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "attempt": 1
       }
     },
@@ -483,7 +483,7 @@
         },
         "scheduledEventId": "27",
         "startedEventId": "28",
-        "identity": "92283@MacBook-Pro-Dawid.local"
+        "identity": "test-worker"
       }
     },
     {
@@ -504,7 +504,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "30",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "historySizeBytes": "4545"
       }
     },
@@ -514,7 +514,7 @@
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "30",
-        "identity": "92283@MacBook-Pro-Dawid.local",
+        "identity": "test-worker",
         "binaryChecksum": "d46b27cd6a737d7fede83092cd12f590",
         "sdkMetadata": {},
         "meteringMetadata": {}

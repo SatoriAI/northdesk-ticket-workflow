@@ -65,7 +65,10 @@ class TicketActivities:
         idempotency_key = request.idempotency_key
         try:
             receipt = await self._helpdesk.perform(
-                idempotency_key=idempotency_key, ticket_id=request.ticket_id, command=command
+                idempotency_key=idempotency_key,
+                ticket_id=request.ticket_id,
+                workflow_id=activity.info().workflow_id or "",
+                command=command,
             )
         except HelpdeskRejectedError as exc:
             # A 4xx will not change on retry; HelpdeskUnavailableError propagates and is retried by ACT_RETRY.

@@ -42,6 +42,7 @@ class ActionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ticket_id: str
+    workflow_id: str | None = None  # for log lines only; not part of what the key protects
     action: str
     details: dict[str, Any]
 
@@ -168,7 +169,7 @@ def create_app(settings: HelpdeskServiceSettings | None = None, rng: random.Rand
         faults: FaultsDep,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=200)],
     ) -> ActionOut | JSONResponse:
-        extra = {"ticket_id": body.ticket_id, "idempotency_key": idempotency_key}
+        extra = {"ticket_id": body.ticket_id, "workflow_id": body.workflow_id, "idempotency_key": idempotency_key}
         if faults.fail_before_performing():
             logger.info("temporary failure for %s, nothing performed", idempotency_key, extra=extra)
             return JSONResponse({"detail": "temporary failure"}, status_code=503)

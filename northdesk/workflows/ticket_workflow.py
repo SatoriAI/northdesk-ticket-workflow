@@ -1,8 +1,8 @@
 """The ticket workflow: deterministic orchestration and state. All I/O happens in activities.
 
-load_context -> decide -> validate -> (refunds only) wait for approval -> act. Every path ends in exactly one
-act, and each action type is carried out at most once per workflow, which is what keeps the idempotency key
-"{workflow_id}:{action}" unique.
+load_context -> decide -> validate -> (refunds only) wait for approval -> act. Every path that completes ends in
+exactly one act (a failed or cancelled ticket ends in none), so each action type is carried out at most once per
+workflow, which is what keeps the idempotency key "{workflow_id}:{action}" unique.
 """
 
 import asyncio
