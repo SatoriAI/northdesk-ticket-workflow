@@ -3,7 +3,8 @@
 It misbehaves on purpose, at seeded random rates, so the worker's retries are exercised:
 - a temporary failure (503) before anything is performed;
 - a lost response: the action is committed, then a 503 is returned as if the reply never arrived.
-A retry with the same Idempotency-Key returns the original result with `replayed: true`.
+A retry with the same Idempotency-Key returns the original result with `replayed: true`; the same key with a
+different request is refused with 422, so a reused key can never report an action that was not performed.
 
 Start with `uvicorn helpdesk.app:create_app --factory`.
 """
@@ -54,6 +55,10 @@ class ActionOut(BaseModel):
     replayed: bool
 
 
+class KeyReusedError(Exception):
+    """The idempotency key was already used for a different request."""
+
+
 class ActionStore:
     """Sync SQLite behind a lock; the endpoints are sync `def`, so FastAPI runs them in its threadpool."""
 
@@ -68,12 +73,15 @@ class ActionStore:
         )
 
     def perform(self, key: str, request: ActionIn) -> ActionOut:
+        details = json.dumps(request.details, sort_keys=True, separators=(",", ":"))  # canonical, comparable
         with self._lock, self._db:
             inserted = self._db.execute(
                 "INSERT OR IGNORE INTO actions VALUES (?, ?, ?, ?, ?)",
-                (key, uuid.uuid4().hex, request.ticket_id, request.action, json.dumps(request.details)),
+                (key, uuid.uuid4().hex, request.ticket_id, request.action, details),
             ).rowcount
             row = self._db.execute("SELECT * FROM actions WHERE idempotency_key = ?", (key,)).fetchone()
+        if (row["ticket_id"], row["action"], row["details"]) != (request.ticket_id, request.action, details):
+            raise KeyReusedError(key)
         return self._to_out(row, replayed=inserted == 0)
 
     def list(self) -> list[ActionOut]:
@@ -132,8 +140,9 @@ def get_faults(request: Request) -> Faults:
 StoreDep = Annotated[ActionStore, Depends(get_store)]
 FaultsDep = Annotated[Faults, Depends(get_faults)]
 
-_TEMPORARY_FAILURE: dict[int | str, dict[str, Any]] = {
-    503: {"description": "Temporary failure, or the action was performed and the response lost"}
+_ERRORS: dict[int | str, dict[str, Any]] = {
+    422: {"description": "Invalid request, or an idempotency key reused for a different request"},
+    503: {"description": "Temporary failure, or the action was performed and the response lost"},
 }
 
 
@@ -152,19 +161,24 @@ def create_app(settings: HelpdeskServiceSettings | None = None, rng: random.Rand
 
     app = FastAPI(title="Fake Helpdesk", lifespan=lifespan)
 
-    @app.post("/actions", response_model=ActionOut, responses=_TEMPORARY_FAILURE)
+    @app.post("/actions", response_model=ActionOut, responses=_ERRORS)
     def perform_action(
         body: ActionIn,
         store: StoreDep,
         faults: FaultsDep,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=200)],
     ) -> ActionOut | JSONResponse:
+        extra = {"ticket_id": body.ticket_id, "idempotency_key": idempotency_key}
         if faults.fail_before_performing():
-            logger.info("temporary failure for %s, nothing performed", idempotency_key)
+            logger.info("temporary failure for %s, nothing performed", idempotency_key, extra=extra)
             return JSONResponse({"detail": "temporary failure"}, status_code=503)
-        result = store.perform(idempotency_key, body)  # committed from here on
+        try:
+            result = store.perform(idempotency_key, body)  # committed from here on
+        except KeyReusedError:
+            logger.warning("refused %s: key already used for a different request", idempotency_key, extra=extra)
+            return JSONResponse({"detail": "idempotency key reused for a different request"}, status_code=422)
         if faults.lose_response():
-            logger.info("performed %s, then lost the response", idempotency_key)
+            logger.info("performed %s, then lost the response", idempotency_key, extra=extra)
             return JSONResponse({"detail": "response lost"}, status_code=503)
         return result
 

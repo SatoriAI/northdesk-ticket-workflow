@@ -53,3 +53,26 @@ async def test_perform__missing_key_is_rejected(helpdesk: httpx.AsyncClient) -> 
     response = await helpdesk.post("/actions", json=REFUND)
 
     assert response.status_code == 422
+
+
+async def test_perform__reused_key_with_different_request_is_refused(
+    helpdesk: httpx.AsyncClient, rolls: list[float]
+) -> None:
+    rolls.extend([*OK, 0.99])
+    await helpdesk.post("/actions", json=REFUND, headers=KEY)
+    other = {**REFUND, "details": {"invoice_id": "INV-1001", "amount_eur": "49.00"}}
+
+    response = await helpdesk.post("/actions", json=other, headers=KEY)
+
+    assert response.status_code == 422
+    assert [action["details"]["invoice_id"] for action in await actions(helpdesk)] == ["INV-1002"]
+
+
+async def test_perform__key_order_of_details_does_not_matter(helpdesk: httpx.AsyncClient, rolls: list[float]) -> None:
+    rolls.extend(OK + OK)
+    await helpdesk.post("/actions", json=REFUND, headers=KEY)
+    reordered = {**REFUND, "details": {"amount_eur": "49.00", "invoice_id": "INV-1002"}}
+
+    response = await helpdesk.post("/actions", json=reordered, headers=KEY)
+
+    assert (response.status_code, response.json()["replayed"]) == (200, True)

@@ -5,8 +5,9 @@ x-app: &app
 
 services:
   temporal:
-    # Dev server with in-memory persistence. The helpdesk database also lives only in its container, so
-    # `docker compose down` resets both together: idempotency keys never outlive the workflows that made them.
+    # Dev server with in-memory persistence. The helpdesk database lives in its container, so `docker compose
+    # down` resets both together. `stop`/`restart` reset only Temporal: a re-posted ticket then reuses an old
+    # key, and the helpdesk refuses it (422) if the request differs, rather than replay an old result.
     image: temporalio/temporal:1.9.1
     command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-ip", "0.0.0.0", "--ui-port", "8233"]
     ports:
