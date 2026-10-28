@@ -5,7 +5,6 @@ import logging
 
 import httpx
 from temporalio.client import Client
-from temporalio.runtime import LogForwardingConfig, LoggingConfig, Runtime, TelemetryConfig, TelemetryFilter
 from temporalio.worker import Worker
 
 from northdesk.clients.helpdesk.client import HelpdeskClient
@@ -27,7 +26,6 @@ async def run(settings: WorkerSettings) -> None:
         settings.temporal.address,
         namespace=settings.temporal.namespace,
         data_converter=DATA_CONVERTER,
-        runtime=_runtime(),
     )
     async with httpx.AsyncClient(
         base_url=settings.helpdesk.url, timeout=settings.helpdesk.timeout_seconds
@@ -49,14 +47,6 @@ def build_llm(settings: LlmSettings) -> LlmClient:
     if settings.mode == "fake":
         return FakeLlm()
     raise SystemExit("LLM_MODE=real is not available yet; use LLM_MODE=fake")
-
-
-def _runtime() -> Runtime:
-    """Forward the SDK core's own warnings (e.g. "Failing workflow task") into Python logging, so they are JSON
-    lines like everything else instead of coloured text on stderr."""
-    forwarding = LogForwardingConfig(logger=logging.getLogger("temporalio.core"), append_log_fields_to_message=False)
-    logs = LoggingConfig(filter=TelemetryFilter(core_level="WARN", other_level="ERROR"), forwarding=forwarding)
-    return Runtime(telemetry=TelemetryConfig(logging=logs))
 
 
 def main() -> None:

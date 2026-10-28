@@ -17,7 +17,7 @@
   },
   "loggers": {
     "uvicorn": {"level": "INFO"},
-    "uvicorn.access": {"level": "WARNING"},
+    "uvicorn.access": {"level": "INFO"},
     "temporalio": {"level": "INFO"}
   },
   "root": {"level": "INFO", "handlers": ["stdout"]}

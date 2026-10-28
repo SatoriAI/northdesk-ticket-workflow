@@ -24,7 +24,7 @@ services:
   helpdesk:
     <<: *app
     command: ["uvicorn", "helpdesk.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001",
-              "--log-config", "northdesk/logging.json"]
+              "--log-config", "northdesk/logging.json", "--no-access-log"]  # skip the 2 s healthcheck lines
     environment:
       HELPDESK_DB_PATH: /data/helpdesk.sqlite3
       # Misbehave on purpose so retries and idempotency show up in the logs; set both to 0 for a quiet run.
