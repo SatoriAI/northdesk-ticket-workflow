@@ -1,0 +1,8 @@
+# The LLM clients: the only place the provider SDK may be imported.
+# This table REPLACES the root banned-api table: keep every root ban except anthropic.
+extend = "../../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"fastapi".msg = "Only northdesk/main.py and northdesk/api/ may import FastAPI."
+"starlette".msg = "Only northdesk/main.py and northdesk/api/ may import Starlette."
+"temporalio".msg = "LLM clients know nothing of Temporal; the decide activity wraps them."

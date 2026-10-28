@@ -39,10 +39,9 @@ select = ["E", "F", "I", "UP", "B", "S", "ASYNC", "DTZ", "FAST", "TID", "RUF"]
 "anthropic".msg = "Only northdesk/clients/llm/ may import the LLM provider SDK."
 
 [tool.ruff.lint.per-file-ignores]
-# The HTTP edge owns FastAPI and holds the Temporal client. Nested ruff.toml files in northdesk/workflows/ and
-# northdesk/domain/ replace this banned-api table for their directories.
+# The composition root wires FastAPI and Temporal together. Directories with their own rules (api/, workflows/,
+# domain/, clients/llm/) have a nested ruff.toml that replaces this banned-api table.
 "northdesk/main.py" = ["TID251"]
-"northdesk/api/**" = ["TID251"]
 # The fake helpdesk is a separate service; the import rule protects northdesk only.
 "helpdesk/**" = ["TID251"]
 "tests/**" = ["S101", "TID251"]

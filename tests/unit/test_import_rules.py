@@ -8,7 +8,11 @@ import pytest
 
 ROOT = Path(__file__).parents[2]
 # Bans a directory deliberately lifts, and why.
-EXEMPT = {"northdesk/workflows": {"temporalio"}}  # the Temporal layer
+EXEMPT = {
+    "northdesk/api": {"fastapi", "starlette", "temporalio"},  # the HTTP edge, holding the Temporal client
+    "northdesk/workflows": {"temporalio"},  # the Temporal layer
+    "northdesk/clients/llm": {"anthropic"},  # the provider SDK's one home
+}
 
 
 def banned(table: dict[str, object]) -> set[str]:

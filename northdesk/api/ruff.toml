@@ -1,0 +1,9 @@
+# The HTTP edge: it owns FastAPI and Starlette and holds the Temporal client, and nothing else.
+# This table REPLACES the root banned-api table: keep every root ban except those three.
+extend = "../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"anthropic".msg = "Only northdesk/clients/llm/ may import the LLM provider SDK."
+"northdesk.agent".msg = "The API starts and queries workflows; the agent runs in the worker."
+"northdesk.clients".msg = "The API calls no outbound services; activities in the worker do."
+"northdesk.data".msg = "The API reads ticket state from Temporal, not from the data layer."
