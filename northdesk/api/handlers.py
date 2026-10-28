@@ -6,6 +6,8 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from temporalio.client import RPCTimeoutOrCancelledError
+from temporalio.service import RPCError, RPCStatusCode
 
 from northdesk.api.problems import problem_response
 from northdesk.errors import AppError
@@ -59,10 +61,38 @@ async def _handle_http_exception(request: Request, exc: Exception) -> Response:
     )
 
 
+# RPC statuses that mean nobody answered in time: no worker polling, or Temporal itself unreachable.
+_NO_ANSWER = frozenset({RPCStatusCode.CANCELLED, RPCStatusCode.DEADLINE_EXCEEDED, RPCStatusCode.UNAVAILABLE})
+_NOT_ANSWERED = (
+    "Temporal or a worker did not answer in time; is the worker running? An approval may still be applied "
+    "once a worker polls, so check GET before resending it."
+)
+
+
+async def _handle_temporal_unavailable(request: Request, exc: Exception) -> Response:
+    """One place for "Temporal did not answer": every route that talks to Temporal gets the same 503."""
+    if isinstance(exc, RPCError) and exc.status not in _NO_ANSWER:
+        raise exc  # an unexpected RPC failure: UnhandledErrorMiddleware logs it and answers 500
+    # The lazy client raises a plain RuntimeError when its first call cannot connect; nothing else is caught.
+    if isinstance(exc, RuntimeError) and not str(exc).startswith("Failed client connect"):
+        raise exc
+    logger.warning("temporal unavailable on %s: %s", request.url.path, type(exc).__name__)
+    return problem_response(
+        status=HTTPStatus.SERVICE_UNAVAILABLE,
+        code="dependency_unavailable",
+        title="A dependency is unavailable",
+        detail=_NOT_ANSWERED,
+        instance=request.url.path,
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, _handle_app_error)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
+    # Query and describe time out as RPCError; an Update times out as RPCTimeoutOrCancelledError instead.
+    for temporal_error in (RPCTimeoutOrCancelledError, RPCError, RuntimeError):
+        app.add_exception_handler(temporal_error, _handle_temporal_unavailable)
 
 
 class UnhandledErrorMiddleware:

@@ -1,6 +1,6 @@
 import dataclasses
 from datetime import timedelta
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Path, Response, status
 from temporalio.client import WorkflowHandle, WorkflowUpdateFailedError
@@ -12,7 +12,7 @@ from northdesk.api.problems import problem_responses
 from northdesk.api.schemas import TICKET_ID_PATTERN, ApprovalIn, TicketAccepted, TicketIn, TicketStateOut
 from northdesk.constants import TEMPORAL_CALL_TIMEOUT_SECONDS
 from northdesk.domain.models import ApprovalRequest, Ticket, TicketState
-from northdesk.errors import DependencyUnavailableError, TicketNotAwaitingApprovalError, TicketNotFoundError
+from northdesk.errors import TicketNotAwaitingApprovalError, TicketNotFoundError
 from northdesk.workflows.starter import start_ticket_workflow, workflow_id_for
 from northdesk.workflows.ticket_workflow import NOT_AWAITING_APPROVAL, TicketWorkflow
 
@@ -20,8 +20,6 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 TicketIdPath = Annotated[str, Path(pattern=TICKET_ID_PATTERN)]
 CALL_TIMEOUT = timedelta(seconds=TEMPORAL_CALL_TIMEOUT_SECONDS)
-# What a query or Update returns when nobody answered in time (no worker running, or Temporal unreachable).
-_NO_ANSWER = frozenset({RPCStatusCode.CANCELLED, RPCStatusCode.DEADLINE_EXCEEDED, RPCStatusCode.UNAVAILABLE})
 
 
 @router.post(
@@ -51,7 +49,7 @@ async def get_ticket(ticket_id: TicketIdPath, client: TemporalClientDep) -> Tick
     except RPCError as exc:
         if exc.status == RPCStatusCode.NOT_FOUND:
             raise TicketNotFoundError(f"No ticket {ticket_id}") from exc
-        _raise_unavailable(exc)
+        raise  # nobody answering is a 503, mapped once in api/handlers.py
     return _state_out(ticket_id, handle.id, state)
 
 
@@ -75,7 +73,7 @@ async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: 
         raise  # InvalidApproval cannot get past ApprovalIn; anything else is a bug and a 500
     except RPCError as exc:
         if exc.status != RPCStatusCode.NOT_FOUND:
-            _raise_unavailable(exc)
+            raise
         # Temporal answers NOT_FOUND both for an unknown workflow and for one that has already finished.
         if await _exists(handle):
             raise TicketNotAwaitingApprovalError("ticket is already closed") from exc
@@ -89,17 +87,8 @@ async def _exists(handle: WorkflowHandle[Any, Any]) -> bool:
     except RPCError as exc:
         if exc.status == RPCStatusCode.NOT_FOUND:
             return False
-        _raise_unavailable(exc)
+        raise
     return True
-
-
-def _raise_unavailable(exc: RPCError) -> NoReturn:
-    """503 when nobody answered in time; any other RPC failure is unexpected and stays a 500."""
-    if exc.status in _NO_ANSWER:
-        raise DependencyUnavailableError(
-            "Temporal or the worker did not answer in time; is the worker running?"
-        ) from exc
-    raise exc
 
 
 def _state_out(ticket_id: str, workflow_id: str, state: TicketState) -> TicketStateOut:

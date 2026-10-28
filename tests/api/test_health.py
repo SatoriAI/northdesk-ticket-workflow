@@ -1,4 +1,6 @@
 import httpx
+from fastapi import FastAPI
+from starlette.types import ASGIApp
 
 from tests.conftest import FakeTemporalClient
 
@@ -36,3 +38,12 @@ async def test_unknown_route__problem_404(client: httpx.AsyncClient) -> None:
     assert response.status_code == 404
     assert response.json()["code"] == "not_found"
     assert response.headers["x-request-id"] == "abc-123"
+
+
+async def test_tickets__unreachable_temporal_is_problem_503(app: tuple[FastAPI, ASGIApp]) -> None:
+    """No override: the app's own lazy client points at a closed port, so its first call cannot connect."""
+    _, asgi_app = app
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=asgi_app), base_url="http://test") as client:
+        response = await client.get("/tickets/T-1")
+
+    assert (response.status_code, response.json()["code"]) == (503, "dependency_unavailable")

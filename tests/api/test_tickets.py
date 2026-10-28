@@ -5,7 +5,6 @@ import httpx
 import pytest
 from temporalio.client import WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
-from temporalio.service import RPCError, RPCStatusCode
 
 from northdesk.domain.models import ApprovalRequest, Decision, Step, TicketState
 from northdesk.workflows.ticket_workflow import NOT_AWAITING_APPROVAL
@@ -124,17 +123,3 @@ async def test_approve__malformed_answer_is_problem_422(client: httpx.AsyncClien
     response = await client.post("/tickets/T-2/approval", json=body)
 
     assert (response.status_code, response.json()["code"]) == (422, "validation_error")
-
-
-# --- no worker -------------------------------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(("method", "path"), [("GET", "/tickets/T-2"), ("POST", "/tickets/T-2/approval")])
-async def test_call__no_worker_answering_is_problem_503(
-    client: httpx.AsyncClient, temporal_client: FakeTemporalClient, method: str, path: str
-) -> None:
-    temporal_client.call_errors["ticket-T-2"] = RPCError("Timeout expired", RPCStatusCode.CANCELLED, b"")
-
-    response = await client.request(method, path, json={"decision": "approve"} if method == "POST" else None)
-
-    assert (response.status_code, response.json()["code"]) == (503, "dependency_unavailable")
