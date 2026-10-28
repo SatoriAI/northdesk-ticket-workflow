@@ -51,7 +51,7 @@ async def test_fake_llm__t6_injection_is_proposed_and_caught_by_validation() -> 
     result = validate(decision, tools.context)
 
     assert decision.amount_eur == Decimal("5000.00")
-    assert result.violation is not None and "outside 0 < amount <= 49.0 EUR" in result.violation
+    assert result.violation is not None and "outside 0 < amount <= 49.00 EUR" in result.violation
 
 
 async def test_fake_llm__t4_reply_names_the_overdue_invoice() -> None:

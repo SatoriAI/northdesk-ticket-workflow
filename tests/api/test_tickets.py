@@ -107,7 +107,7 @@ async def test_approve__refund_is_carried_out_and_a_second_answer_refused(api: h
     assert done["result"]["action"] == "refund"
     again = await api.post("/tickets/T-2/approval", json={"decision": "approve", "comment": "confirmed"})
     assert (again.status_code, again.json()["code"]) == (409, "ticket_not_awaiting_approval")
-    assert again.json()["detail"] == "ticket is already closed"
+    assert again.json()["detail"] == "ticket has already finished"
 
 
 async def test_approve__reject_tells_the_customer(api: httpx.AsyncClient) -> None:

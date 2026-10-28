@@ -13,12 +13,14 @@ router = APIRouter(prefix="/health", tags=["health"])
 READINESS_TIMEOUT = timedelta(seconds=2)
 
 
-@router.get("/live")
+@router.get("/live", summary="Liveness: the process answers")
 async def live() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/ready", responses=problem_responses(503))
+@router.get(
+    "/ready", summary="Readiness: Temporal is reachable (a worker is not checked)", responses=problem_responses(503)
+)
 async def ready(client: TemporalClientDep) -> dict[str, str]:
     try:
         serving = await client.service_client.check_health(timeout=READINESS_TIMEOUT)

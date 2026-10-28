@@ -85,7 +85,7 @@ def _check_refund(decision: Decision, context: TicketContext, category: Category
     if not amount.is_finite():  # comparing a Decimal NaN raises instead of returning False
         return f"refund amount {_quote(str(amount))} is not a number"
     if not Decimal(0) < amount <= invoice.amount_eur:
-        return f"refund of {_quote(str(amount))} EUR is outside 0 < amount <= {invoice.amount_eur} EUR"
+        return f"refund of {_quote(str(amount))} EUR is outside 0 < amount <= {invoice.amount_eur.quantize(CENT)} EUR"
     if amount != amount.quantize(CENT):
         return f"refund of {_quote(str(amount))} EUR has more than two decimal places"
     return Command(Action.REFUND, category, priority, invoice_id=invoice.invoice_id, amount_eur=amount.quantize(CENT))

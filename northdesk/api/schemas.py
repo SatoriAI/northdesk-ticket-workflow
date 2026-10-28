@@ -4,13 +4,25 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 from northdesk.domain.approval import MAX_APPROVAL_COMMENT_LENGTH
-from northdesk.domain.models import ApprovalDecision
+from northdesk.domain.models import ApprovalDecision, Step
 
 TICKET_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 
 
 class TicketIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "ticket_id": "T-1",
+                    "customer_id": "C-200",
+                    "subject": "Can't log in",
+                    "body": "I forgot my password and can't get into my account.",
+                }
+            ]
+        },
+    )
 
     ticket_id: str = Field(pattern=TICKET_ID_PATTERN)
     customer_id: str = Field(min_length=1, max_length=64)
@@ -19,7 +31,10 @@ class TicketIn(BaseModel):
 
 
 class ApprovalIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"decision": "approve", "comment": "duplicate charge confirmed"}]},
+    )
 
     decision: ApprovalDecision
     comment: str = Field(default="", max_length=MAX_APPROVAL_COMMENT_LENGTH)
@@ -57,14 +72,14 @@ class ActionResultOut(BaseModel):
 
 
 class HistoryEntryOut(BaseModel):
-    step: str
+    step: Step
     reason: str
 
 
 class TicketStateOut(BaseModel):
     ticket_id: str
     workflow_id: str
-    step: str
+    step: Step
     decision: DecisionOut | None
     command: DecisionOut | None
     approval: ApprovalOut | None

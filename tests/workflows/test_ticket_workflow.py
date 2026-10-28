@@ -97,7 +97,7 @@ async def test_run__invalid_refund_is_escalated_not_refunded(env: WorkflowEnviro
 
     assert stubs.actions == [Action.ESCALATE]
     acting = next(entry for entry in state.history if entry.step == Step.ACTING)
-    assert "outside 0 < amount <= 49.0 EUR" in acting.reason
+    assert "outside 0 < amount <= 49.00 EUR" in acting.reason
 
 
 # --- 2-4. refund approval --------------------------------------------------------------------------------------
@@ -169,6 +169,7 @@ async def test_approval__second_answer_is_refused(env: WorkflowEnvironment, stub
         await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("approve"), result_type=TicketState)
 
     assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == NOT_AWAITING_APPROVAL
+    assert raised.value.cause.message == "ticket was already answered: reject"
     await handle.result()
     assert stubs.actions == [Action.REPLY]
 

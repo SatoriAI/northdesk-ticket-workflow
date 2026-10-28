@@ -154,7 +154,8 @@ production retry policy through a lost response and checks that exactly one refu
 
 **Duplicate tickets.** Workflows start with `id_reuse_policy=REJECT_DUPLICATE` and `id_conflict_policy=USE_EXISTING`:
 a second POST for a running ticket returns the existing workflow, and one for a finished ticket is refused by
-Temporal; both answer 200 with the same `workflow_id`. This protection lasts only as long as Temporal remembers the
+Temporal; both answer 200 with the same `workflow_id`. The existing ticket is kept: a re-post's body is not
+compared or used, even if it differs. This protection lasts only as long as Temporal remembers the
 workflow ID, i.e. the namespace's retention period. Locally, the dev server keeps everything in memory, so it also
 ends whenever the Temporal container restarts.
 
@@ -229,7 +230,8 @@ code, not the author's explanation of it.
 **Limitations**
 
 - `GET /tickets/{id}` and the approval endpoint need a running worker: a query or an Update is answered by the
-  worker. Without one they return 503 after 10 s.
+  worker. Without one they return 503 after 10 s. `/health/ready` checks that Temporal is reachable, not that a
+  worker is running.
 - The fake helpdesk is not production-grade: one SQLite file, one lock, no authentication.
 - Real-LLM mode has not been run with a real key here. To check it: `LLM_MODE=real LLM_API_KEY=… docker compose up
   --build`, post T-1, and `GET /tickets/T-1` should show `account / normal / reply` citing KB-1. If model calls come

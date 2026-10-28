@@ -34,7 +34,20 @@ CALL_TIMEOUT = timedelta(seconds=10)
 @router.post(
     "",
     status_code=status.HTTP_202_ACCEPTED,
-    responses={200: {"model": TicketAccepted, "description": "Ticket already exists"}, **problem_responses(422, 503)},
+    summary="Submit a ticket",
+    responses={
+        202: {
+            "description": "Ticket accepted; its workflow has started",
+            "headers": {
+                "Location": {"description": "The ticket's URL, e.g. /tickets/T-1", "schema": {"type": "string"}}
+            },
+        },
+        200: {
+            "model": TicketAccepted,
+            "description": "The ticket already exists (running or finished); the new body is ignored, nothing starts",
+        },
+        **problem_responses(422, 503),
+    },
 )
 async def create_ticket(
     ticket: TicketIn, client: TemporalClientDep, settings: SettingsDep, response: Response
@@ -50,7 +63,7 @@ async def create_ticket(
     return TicketAccepted(ticket_id=ticket.ticket_id, workflow_id=workflow_id_for(ticket.ticket_id))
 
 
-@router.get("/{ticket_id}", responses=problem_responses(404, 422, 503))
+@router.get("/{ticket_id}", summary="Read a ticket's state", responses=problem_responses(404, 422, 503))
 async def get_ticket(ticket_id: TicketIdPath, client: TemporalClientDep) -> TicketStateOut:
     """The ticket's current step, decision, result and history, from the workflow's `state` query."""
     handle = client.get_workflow_handle(workflow_id_for(ticket_id))
@@ -63,7 +76,9 @@ async def get_ticket(ticket_id: TicketIdPath, client: TemporalClientDep) -> Tick
     return _state_out(ticket_id, handle.id, state)
 
 
-@router.post("/{ticket_id}/approval", responses=problem_responses(404, 409, 422, 503))
+@router.post(
+    "/{ticket_id}/approval", summary="Approve or reject a refund", responses=problem_responses(404, 409, 422, 503)
+)
 async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: TemporalClientDep) -> TicketStateOut:
     """Approve or reject the refund the ticket is waiting on (the workflow's `approval` Update).
 
@@ -91,7 +106,7 @@ async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: 
             raise
         # Temporal answers NOT_FOUND both for an unknown workflow and for one that has already finished.
         if await _exists(handle):
-            raise TicketNotAwaitingApprovalError("ticket is already closed") from exc
+            raise TicketNotAwaitingApprovalError("ticket has already finished") from exc
         raise TicketNotFoundError(f"No ticket {ticket_id}") from exc
     return _state_out(ticket_id, handle.id, state)
 

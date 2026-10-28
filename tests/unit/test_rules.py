@@ -101,7 +101,7 @@ def test_validate__partial_refund_passes() -> None:
 
 def test_validate__refund_above_invoice_amount_escalates() -> None:
     """T-6: the injected 5000 EUR refund."""
-    assert_escalated(refund(amount="5000"), NORTHWIND, "outside 0 < amount <= 49.0 EUR")
+    assert_escalated(refund(amount="5000"), NORTHWIND, "outside 0 < amount <= 49.00 EUR")
 
 
 def test_validate__refund_one_cent_above_invoice_escalates() -> None:

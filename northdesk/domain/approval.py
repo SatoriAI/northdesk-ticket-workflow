@@ -21,7 +21,9 @@ class ApprovalRefusal:
 
 def approval_refusal(state: TicketState, request: ApprovalRequest) -> ApprovalRefusal | None:
     """Why this answer cannot be accepted now, or None when it can."""
-    if state.step != Step.AWAITING_APPROVAL or state.approval is not None:
+    if state.approval is not None:  # e.g. the loser of an approve and a reject sent at the same moment
+        return ApprovalRefusal(RefusalKind.NOT_AWAITING, f"ticket was already answered: {state.approval.decision}")
+    if state.step != Step.AWAITING_APPROVAL:
         return ApprovalRefusal(RefusalKind.NOT_AWAITING, f"ticket is not awaiting approval (step: {state.step})")
     if request.decision not in ApprovalDecision:
         return ApprovalRefusal(RefusalKind.INVALID, "decision must be 'approve' or 'reject'")

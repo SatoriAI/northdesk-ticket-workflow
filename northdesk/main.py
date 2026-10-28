@@ -33,6 +33,11 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Northdesk",
+        description=(
+            "Support tickets processed by an agentic Temporal workflow: POST a ticket, then GET its state. The agent "
+            "proposes a decision, code validates it, and refunds wait at `awaiting_approval` until "
+            "POST /tickets/{id}/approval answers them. Errors are RFC 9457 problems with a stable `code`."
+        ),
         version=__version__,
         lifespan=lifespan,
         docs_url="/docs" if settings.enable_docs else None,
