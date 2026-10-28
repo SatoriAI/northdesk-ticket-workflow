@@ -11,7 +11,9 @@ from northdesk import __version__
 from northdesk.api.handlers import UnhandledErrorMiddleware, register_exception_handlers
 from northdesk.api.health import router as health_router
 from northdesk.api.request_id import RequestIdMiddleware
+from northdesk.api.tickets import router as tickets_router
 from northdesk.settings import ApiSettings
+from northdesk.workflows.converter import DATA_CONVERTER
 
 
 class State(TypedDict):
@@ -27,7 +29,10 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         async with AsyncExitStack():  # reverse-order cleanup for resources added later, even if startup fails
             # Lazy: the API starts even while Temporal is still booting; /health/ready reports reachability.
             temporal_client = await Client.connect(
-                settings.temporal.address, namespace=settings.temporal.namespace, lazy=True
+                settings.temporal.address,
+                namespace=settings.temporal.namespace,
+                data_converter=DATA_CONVERTER,
+                lazy=True,
             )
             yield {"settings": settings, "temporal_client": temporal_client}
 
@@ -40,6 +45,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if settings.enable_docs else None,
     )
     app.include_router(health_router)
+    app.include_router(tickets_router)
     register_exception_handlers(app)
 
     # Last added = outermost: unexpected 500s still pass back through the request-ID middleware.
