@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -28,6 +29,8 @@ DECISIONS = {
     "T-1": Decision("account", "normal", "reply", message="Use 'Forgot password'.", kb_article_ids=["KB-1"]),
     "T-2": Decision("billing", "normal", "refund", invoice_id="INV-1002", amount_eur=Decimal("49")),
     "T-6": Decision("billing", "urgent", "refund", invoice_id="INV-1002", amount_eur=Decimal("5000")),
+    # What Decision(**tool_input) gives when a model writes "amount_eur": 49 as a JSON number.
+    "T-2-int": Decision("billing", "normal", "refund", invoice_id="INV-1002", amount_eur=49),  # type: ignore[arg-type]
 }
 
 
@@ -69,7 +72,12 @@ async def run_ticket(client: Client, ticket_id: str, recorder: ActRecorder) -> T
         client, task_queue=TASK_QUEUE, workflows=[TicketWorkflow], activities=[load_context, decide, recorder.act]
     ):
         return await client.execute_workflow(
-            TicketWorkflow.run, ticket, id=f"ticket-{ticket_id}-{uuid.uuid4().hex[:6]}", task_queue=TASK_QUEUE
+            TicketWorkflow.run,
+            ticket,
+            id=f"ticket-{ticket_id}-{uuid.uuid4().hex[:6]}",
+            task_queue=TASK_QUEUE,
+            # A workflow task that keeps failing would otherwise retry for ever and hang the test.
+            execution_timeout=timedelta(minutes=5),
         )
 
 
@@ -101,3 +109,12 @@ async def test_run__valid_refund_never_reaches_act_unapproved(env: WorkflowEnvir
 
     assert Action.REFUND not in [request.command.action for request in recorder.performed]
     assert state.command is not None and state.command.action == Action.ESCALATE
+
+
+async def test_run__numeric_amount_from_model_does_not_stick_the_workflow(
+    env: WorkflowEnvironment, recorder: ActRecorder
+) -> None:
+    state = await run_ticket(env.client, "T-2-int", recorder)
+
+    assert state.step == Step.COMPLETED
+    assert state.decision is not None and state.decision.amount_eur == Decimal("49")

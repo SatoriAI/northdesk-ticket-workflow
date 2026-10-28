@@ -27,11 +27,13 @@ class _DecimalEncoder(AdvancedJSONEncoder):
 class _DecimalTypeConverter(JSONTypeConverter):
     def to_typed_value(self, hint: type, value: Any) -> Any:
         if hint is Decimal:
-            # Only exact strings: a JSON number has already been through float, so 49.1 would arrive as
-            # 49.10000000000000142... and pass every comparison it should not.
-            if not isinstance(value, str):
-                raise TypeError(f"Decimal must be sent as a JSON string, got {type(value).__name__}")
-            return Decimal(value)
+            # A JSON number (e.g. a model that wrote "amount_eur": 49.1) goes through str(), the float's shortest
+            # round-trip text, so 49.1 stays 49.1 rather than 49.10000000000000142...; the refund rules then
+            # reject anything finer than a cent. Raising here instead would fail the workflow task inside the
+            # workflow, where it is retried forever and the ticket never escalates.
+            if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+                raise TypeError(f"cannot read a Decimal from {type(value).__name__}")
+            return Decimal(str(value))
         return JSONTypeConverter.Unhandled
 
 

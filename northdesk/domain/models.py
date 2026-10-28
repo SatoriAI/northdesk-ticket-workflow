@@ -73,7 +73,8 @@ class TicketContext:
 
     customer: Customer
     invoices: list[Invoice]  # this customer's only: other customers' data never enters the workflow
-    kb_article_ids: list[str]
+    # Fields added after the first release default, so payloads written by older workflows still decode.
+    kb_article_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -110,7 +111,7 @@ class ActionResult:
     action: str
     helpdesk_action_id: str
     idempotency_key: str
-    replayed: bool  # the helpdesk had already performed this key (a retry after a lost response)
+    replayed: bool = False  # the helpdesk had already performed this key (a retry after a lost response)
 
 
 @dataclass(frozen=True)
