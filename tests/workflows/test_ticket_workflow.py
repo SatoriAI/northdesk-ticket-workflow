@@ -1,7 +1,5 @@
 import uuid
-from collections.abc import AsyncIterator
 
-import pytest
 from temporalio import activity
 from temporalio.client import Client
 from temporalio.testing import WorkflowEnvironment
@@ -9,17 +7,10 @@ from temporalio.worker import Worker
 
 from northdesk.domain.models import ActionResult, Customer, Decision, Step, Ticket, TicketContext, TicketState
 from northdesk.workflows.activities import ActInput, DecideInput
-from northdesk.workflows.converter import DATA_CONVERTER
 from northdesk.workflows.ticket_workflow import TicketWorkflow
 
 TASK_QUEUE = "test-tickets"
 T1 = Ticket("T-1", "C-200", "Can't log in", "I forgot my password and can't get into my account.")
-
-
-@pytest.fixture(scope="session")
-async def env() -> AsyncIterator[WorkflowEnvironment]:
-    async with await WorkflowEnvironment.start_time_skipping(data_converter=DATA_CONVERTER) as env:
-        yield env
 
 
 @activity.defn(name="load_context")

@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -6,6 +7,7 @@ import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 from starlette.types import ASGIApp
+from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from northdesk.api.deps import get_temporal_client
 from northdesk.main import create_app
@@ -21,10 +23,21 @@ class FakeServiceClient:
 
 
 class FakeTemporalClient:
-    """Stands in for temporalio.client.Client at the API boundary; tests extend it as endpoints need."""
+    """Stands in for temporalio.client.Client at the API boundary; tests extend it as endpoints need.
+
+    start_workflow mimics the SDK behaviour that tests/workflows/test_starter.py pins against a real server.
+    """
 
     def __init__(self) -> None:
         self.service_client = FakeServiceClient()
+        self.workflows: dict[str, str] = {}  # workflow ID -> "running" | "closed"
+
+    async def start_workflow(self, _workflow: Any, _arg: Any, *, id: str, **_: Any) -> SimpleNamespace:
+        if self.workflows.get(id) == "closed":
+            raise WorkflowAlreadyStartedError(id, "TicketWorkflow")
+        started = id not in self.workflows
+        self.workflows[id] = "running"
+        return SimpleNamespace(_start_workflow_response=SimpleNamespace(started=started))
 
 
 @pytest.fixture(scope="session")
