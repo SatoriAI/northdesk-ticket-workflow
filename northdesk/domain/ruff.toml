@@ -1,0 +1,16 @@
+# The domain is pure: dataclasses and rules, no frameworks, no I/O, no other northdesk layers.
+# This table REPLACES the root banned-api table, so it repeats the root bans.
+extend = "../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"fastapi".msg = "The domain must not depend on FastAPI."
+"starlette".msg = "The domain must not depend on Starlette."
+"temporalio".msg = "The domain must not depend on Temporal."
+"anthropic".msg = "The domain must not depend on the LLM provider."
+"httpx".msg = "The domain does no I/O."
+"pydantic".msg = "Domain types are dataclasses."
+"pydantic_settings".msg = "The domain reads no settings; values are passed in."
+"northdesk.api".msg = "The domain must not import other northdesk layers."
+"northdesk.workflows".msg = "The domain must not import other northdesk layers."
+"northdesk.clients".msg = "The domain must not import other northdesk layers."
+"northdesk.data".msg = "The domain must not import other northdesk layers."

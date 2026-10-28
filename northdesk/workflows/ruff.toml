@@ -1,6 +1,9 @@
 # Workflows and activities are the Temporal layer: Temporal is allowed here, FastAPI still is not.
+# This table REPLACES the root banned-api table rather than extending it: keep every root ban except temporalio.
 extend = "../../pyproject.toml"
 
 [lint.flake8-tidy-imports.banned-api]
 "fastapi".msg = "Only northdesk/main.py and northdesk/api/ may import FastAPI."
 "starlette".msg = "Only northdesk/main.py and northdesk/api/ may import Starlette."
+"anthropic".msg = "Only northdesk/clients/llm/ may import the LLM provider SDK."
+"pydantic".msg = "Workflow inputs, outputs and state are dataclasses; Pydantic stays in api/ and settings."
