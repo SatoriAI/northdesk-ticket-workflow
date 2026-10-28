@@ -7,7 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class ServiceSettings(BaseSettings):
     """Common base: nested settings classes don't inherit the parent's model_config."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # env_ignore_empty: an empty VAR= (as in .env.example) means "use the default", not "parse an empty string".
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
 
 
 class TemporalSettings(ServiceSettings):

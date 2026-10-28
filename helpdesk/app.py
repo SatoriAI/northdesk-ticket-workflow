@@ -27,7 +27,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class HelpdeskServiceSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="HELPDESK_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="HELPDESK_", env_file=".env", extra="ignore", env_ignore_empty=True)
 
     db_path: Path = Path("helpdesk.sqlite3")
     failure_rate: float = Field(default=0.0, ge=0, le=1)
