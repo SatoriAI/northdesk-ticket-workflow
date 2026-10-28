@@ -23,6 +23,7 @@ with workflow.unsafe.imports_passed_through():
     )
     from northdesk.domain.rules import validate
     from northdesk.workflows.activities import (
+        HELPDESK_REJECTED,
         UNKNOWN_CUSTOMER,
         ActInput,
         DecideInput,
@@ -39,6 +40,9 @@ with workflow.unsafe.imports_passed_through():
     )
 
 ACT_FAILED = "ActFailed"
+# Failure types of a refused approval, so the API can answer 409 or 422 without reading messages.
+NOT_AWAITING_APPROVAL = "NotAwaitingApproval"
+INVALID_APPROVAL = "InvalidApproval"
 MAX_APPROVAL_COMMENT_LENGTH = 500
 REFUND_DECLINED_MESSAGE = (
     "We have reviewed your refund request and cannot approve it. "
@@ -70,6 +74,8 @@ class TicketWorkflow:
 
     @workflow.update
     def approval(self, request: ApprovalRequest) -> TicketState:
+        # Synchronous on purpose: the SDK runs it straight after its validator, with no await in between, so two
+        # answers sent at once cannot both pass the "not answered yet" check.
         self._state.approval = request
         return self._state
 
@@ -77,11 +83,15 @@ class TicketWorkflow:
     def _check_approval(self, request: ApprovalRequest) -> None:
         """Runs before the Update is accepted; raising refuses it without touching the workflow's history."""
         if self._state.step != Step.AWAITING_APPROVAL or self._state.approval is not None:
-            raise ValueError(f"ticket is not awaiting approval (step: {self._state.step})")
+            raise ApplicationError(
+                f"ticket is not awaiting approval (step: {self._state.step})", type=NOT_AWAITING_APPROVAL
+            )
         if request.decision not in {ApprovalDecision.APPROVE, ApprovalDecision.REJECT}:
-            raise ValueError("decision must be 'approve' or 'reject'")
+            raise ApplicationError("decision must be 'approve' or 'reject'", type=INVALID_APPROVAL)
         if len(request.comment) > MAX_APPROVAL_COMMENT_LENGTH:
-            raise ValueError(f"comment is longer than {MAX_APPROVAL_COMMENT_LENGTH} characters")
+            raise ApplicationError(
+                f"comment is longer than {MAX_APPROVAL_COMMENT_LENGTH} characters", type=INVALID_APPROVAL
+            )
 
     async def _decide(self, ticket: Ticket) -> tuple[Command, str]:
         """The command to carry out and the reason recorded for it: load the context, ask the agent, validate."""
@@ -152,9 +162,12 @@ class TicketWorkflow:
         except ActivityError as exc:
             if is_cancelled_exception(exc):
                 raise
-            # Every attempt may have been performed and its response lost, so the outcome is unknown: falling back
-            # to another action could double up. Fail the workflow and say where to look.
-            reason = f"{command.action} failed ({_failure_type(exc)}); outcome unknown, check helpdesk key {key}"
+            # Fail the workflow and say where to look; a fallback action could double up with one already done.
+            failure = _failure_type(exc)
+            if failure == HELPDESK_REJECTED:  # a 4xx: nothing was done, or the key already holds another request
+                reason = f"{command.action} rejected by the helpdesk; check helpdesk key {key}"
+            else:  # out of attempts: any of them may have been performed with its response lost
+                reason = f"{command.action} failed ({failure}); outcome unknown, check helpdesk key {key}"
             self._advance(Step.FAILED, reason)
             raise ApplicationError(reason, type=ACT_FAILED, non_retryable=True) from exc
 

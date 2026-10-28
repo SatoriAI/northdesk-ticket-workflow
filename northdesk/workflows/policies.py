@@ -19,11 +19,13 @@ DECIDE_RETRY = RetryPolicy(
 )
 
 ACT_TIMEOUT = timedelta(seconds=15)
+# Ten attempts: with the Compose fault rates (20% + 20%), one attempt fails about 36% of the time, so all ten
+# fail for about 0.004% of tickets (six attempts left about 0.2% failed).
 ACT_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
     backoff_coefficient=2.0,
     maximum_interval=timedelta(seconds=20),
-    maximum_attempts=6,
+    maximum_attempts=10,
 )
 
 # How long a refund waits for a person before it is escalated instead (the brief's 24 h).

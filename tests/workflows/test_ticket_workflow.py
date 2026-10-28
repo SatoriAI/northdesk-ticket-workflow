@@ -26,8 +26,20 @@ from northdesk.domain.models import (
     TicketContext,
     TicketState,
 )
-from northdesk.workflows.activities import UNKNOWN_CUSTOMER, UNPARSEABLE_DECISION, ActInput, DecideInput
-from northdesk.workflows.ticket_workflow import ACT_FAILED, REFUND_DECLINED_MESSAGE, TicketWorkflow
+from northdesk.workflows.activities import (
+    HELPDESK_REJECTED,
+    UNKNOWN_CUSTOMER,
+    UNPARSEABLE_DECISION,
+    ActInput,
+    DecideInput,
+)
+from northdesk.workflows.ticket_workflow import (
+    ACT_FAILED,
+    INVALID_APPROVAL,
+    NOT_AWAITING_APPROVAL,
+    REFUND_DECLINED_MESSAGE,
+    TicketWorkflow,
+)
 
 TASK_QUEUE = "test-tickets"
 
@@ -48,6 +60,8 @@ class Stubs:
         self.decided: list[str] = []
         self.performed: list[ActInput] = []
         self.act_failures = 0  # attempts of act that fail before one succeeds
+        self.reject_act = False  # act fails as a helpdesk 4xx would: non-retryable
+        self.act_attempts = 0
         self.deciding = asyncio.Event()
 
     @activity.defn(name="load_context")
@@ -73,6 +87,9 @@ class Stubs:
 
     @activity.defn(name="act")
     async def act(self, request: ActInput) -> ActionResult:
+        self.act_attempts += 1
+        if self.reject_act:
+            raise ApplicationError("helpdesk rejected the request with 422", type=HELPDESK_REJECTED, non_retryable=True)
         if activity.info().attempt <= self.act_failures:
             raise RuntimeError("helpdesk unavailable")
         self.performed.append(request)
@@ -207,7 +224,7 @@ async def test_approval__refused_when_not_awaiting_approval(env: WorkflowEnviron
     with pytest.raises(WorkflowUpdateFailedError) as raised:
         await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("approve"))
 
-    assert "not awaiting approval" in str(raised.value.cause)
+    assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == NOT_AWAITING_APPROVAL
     assert (await handle.query(TicketWorkflow.state)).approval is None
     await handle.terminate("test done")
 
@@ -216,9 +233,10 @@ async def test_approval__second_answer_is_refused(env: WorkflowEnvironment, stub
     handle = await awaiting_refund(env)
     await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("reject"))
 
-    with pytest.raises(WorkflowUpdateFailedError):
+    with pytest.raises(WorkflowUpdateFailedError) as raised:
         await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("approve"))
 
+    assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == NOT_AWAITING_APPROVAL
     await handle.result()
     assert stubs.actions == [Action.REPLY]
 
@@ -229,8 +247,10 @@ async def test_approval__malformed_answer_is_refused(
 ) -> None:
     handle = await awaiting_refund(env)
 
-    with pytest.raises(WorkflowUpdateFailedError):
+    with pytest.raises(WorkflowUpdateFailedError) as raised:
         await handle.execute_update(TicketWorkflow.approval, request_)
+
+    assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == INVALID_APPROVAL
 
     assert (await handle.query(TicketWorkflow.state)).step == Step.AWAITING_APPROVAL
     await handle.terminate("test done")
@@ -258,7 +278,22 @@ async def test_run__act_out_of_attempts_fails_with_the_key_to_check(env: Workflo
     assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == ACT_FAILED
     state = await handle.query(TicketWorkflow.state)
     assert state.step == Step.FAILED
-    assert f"check helpdesk key {handle.id}:reply" in state.history[-1].reason
+    assert (
+        state.history[-1].reason
+        == f"reply failed (RuntimeError); outcome unknown, check helpdesk key {handle.id}:reply"
+    )
+
+
+async def test_run__act_rejected_by_helpdesk_fails_without_retrying(env: WorkflowEnvironment, stubs: Stubs) -> None:
+    stubs.reject_act = True
+    handle = await start(env, "T-1")
+
+    with pytest.raises(WorkflowFailureError):
+        await handle.result()
+
+    state = await handle.query(TicketWorkflow.state)
+    assert state.history[-1].reason == f"reply rejected by the helpdesk; check helpdesk key {handle.id}:reply"
+    assert stubs.act_attempts == 1
 
 
 # --- 6. unknown customer ---------------------------------------------------------------------------------------
