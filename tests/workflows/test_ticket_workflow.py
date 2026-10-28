@@ -1,11 +1,12 @@
+import asyncio
 import uuid
 from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 from temporalio import activity
-from temporalio.client import Client
-from temporalio.exceptions import ApplicationError
+from temporalio.client import Client, WorkflowFailureError
+from temporalio.exceptions import ApplicationError, is_cancelled_exception
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
@@ -44,8 +45,14 @@ async def load_context(ticket: Ticket) -> TicketContext:
     )
 
 
+deciding = asyncio.Event()  # set by the stub decide when T-slow starts deciding
+
+
 @activity.defn(name="decide")
 async def decide(request: DecideInput) -> Decision:
+    if request.ticket.ticket_id == "T-slow":
+        deciding.set()
+        await asyncio.sleep(3600)  # still deciding when the test cancels the workflow
     if request.ticket.ticket_id == "T-unparseable":
         raise ApplicationError("no valid decision after 6 turns", type=UNPARSEABLE_DECISION, non_retryable=True)
     return DECISIONS[request.ticket.ticket_id]
@@ -131,3 +138,23 @@ async def test_run__no_usable_decision_escalates(env: WorkflowEnvironment, recor
     [performed] = recorder.performed
     assert performed.command.action == Action.ESCALATE
     assert performed.command.reason == f"the agent could not decide ({UNPARSEABLE_DECISION})"
+
+
+async def test_run__cancel_while_deciding_cancels_without_acting(
+    env: WorkflowEnvironment, recorder: ActRecorder
+) -> None:
+    ticket = Ticket("T-slow", "C-100", "subject", "body")
+    async with Worker(
+        env.client, task_queue=TASK_QUEUE, workflows=[TicketWorkflow], activities=[load_context, decide, recorder.act]
+    ):
+        handle = await env.client.start_workflow(
+            TicketWorkflow.run, ticket, id=f"ticket-T-slow-{uuid.uuid4().hex[:6]}", task_queue=TASK_QUEUE
+        )
+        await asyncio.wait_for(deciding.wait(), timeout=30)
+
+        await handle.cancel()
+
+        with pytest.raises(WorkflowFailureError) as raised:
+            await handle.result()
+    assert is_cancelled_exception(raised.value.cause)
+    assert recorder.performed == []

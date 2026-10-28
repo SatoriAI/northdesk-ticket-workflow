@@ -1,7 +1,7 @@
 """The ticket workflow: deterministic orchestration and state. All I/O happens in activities."""
 
 from temporalio import workflow
-from temporalio.exceptions import ActivityError, ApplicationError
+from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
 
 with workflow.unsafe.imports_passed_through():
     from northdesk.domain.models import (
@@ -54,6 +54,8 @@ class TicketWorkflow:
                 retry_policy=DECIDE_RETRY,
             )
         except ActivityError as exc:
+            if is_cancelled_exception(exc):  # the workflow itself was cancelled: stop, do not act
+                raise
             # No usable decision within the loop cap (non-retryable), or the LLM kept failing until the retries
             # ran out: either way a person has to look at the ticket.
             failure = exc.cause.type if isinstance(exc.cause, ApplicationError) else type(exc.cause).__name__
