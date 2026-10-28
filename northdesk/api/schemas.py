@@ -30,6 +30,17 @@ class DecisionOut(BaseModel):
     amount_eur: Decimal | None
 
 
+class CommandOut(BaseModel):
+    action: str
+    category: str
+    priority: str
+    message: str | None
+    reason: str | None
+    kb_article_ids: list[str]
+    invoice_id: str | None
+    amount_eur: Decimal | None
+
+
 class ActionResultOut(BaseModel):
     action: str
     helpdesk_action_id: str
@@ -46,5 +57,6 @@ class TicketStateOut(BaseModel):
     workflow_id: str
     step: str
     decision: DecisionOut | None
+    command: CommandOut | None
     result: ActionResultOut | None
     history: list[HistoryEntryOut]

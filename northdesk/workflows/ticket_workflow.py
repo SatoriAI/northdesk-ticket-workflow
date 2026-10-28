@@ -4,6 +4,7 @@ from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
     from northdesk.domain.models import HistoryEntry, Step, Ticket, TicketState
+    from northdesk.domain.rules import validate
     from northdesk.workflows.activities import ActInput, DecideInput, TicketActivities
     from northdesk.workflows.policies import (
         ACT_RETRY,
@@ -41,15 +42,23 @@ class TicketWorkflow:
         )
         self._state.decision = decision
 
-        self._advance(Step.ACTING, f"decided {decision.category}/{decision.priority}/{decision.action}")
+        self._advance(Step.VALIDATING, f"agent proposed {decision.category}/{decision.priority}/{decision.action}")
+        # Pure and deterministic, so it runs in the workflow itself, against the data load_context returned.
+        validation = validate(decision, context)
+        command = self._state.command = validation.command
+
+        self._advance(
+            Step.ACTING,
+            f"escalating: {validation.violation}" if validation.violation else f"validated {command.action}",
+        )
         self._state.result = await workflow.execute_activity_method(
             TicketActivities.act,
-            ActInput(ticket_id=ticket.ticket_id, decision=decision),
+            ActInput(ticket_id=ticket.ticket_id, command=command),
             start_to_close_timeout=ACT_TIMEOUT,
             retry_policy=ACT_RETRY,
         )
 
-        self._advance(Step.COMPLETED, f"{decision.action} done")
+        self._advance(Step.COMPLETED, f"{command.action} done")
         return self._state
 
     @workflow.query
