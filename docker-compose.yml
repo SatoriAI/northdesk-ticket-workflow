@@ -25,6 +25,10 @@ services:
     command: ["uvicorn", "helpdesk.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
     environment:
       HELPDESK_DB_PATH: /data/helpdesk.sqlite3
+      # Misbehave on purpose so retries and idempotency show up in the logs; set both to 0 for a quiet run.
+      HELPDESK_FAILURE_RATE: ${HELPDESK_FAILURE_RATE:-0.2}
+      HELPDESK_LOST_RESPONSE_RATE: ${HELPDESK_LOST_RESPONSE_RATE:-0.2}
+      HELPDESK_SEED: ${HELPDESK_SEED:-7}
     ports:
       - "8001:8001"
     healthcheck:

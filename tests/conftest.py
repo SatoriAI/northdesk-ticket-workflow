@@ -8,10 +8,12 @@ from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 from starlette.types import ASGIApp
 from temporalio.exceptions import WorkflowAlreadyStartedError
+from temporalio.testing import WorkflowEnvironment
 
 from northdesk.api.deps import get_temporal_client
 from northdesk.main import create_app
 from northdesk.settings import ApiSettings, TemporalSettings
+from northdesk.workflows.converter import DATA_CONVERTER
 
 
 class FakeServiceClient:
@@ -68,3 +70,10 @@ async def client(app: tuple[FastAPI, ASGIApp], temporal_client: FakeTemporalClie
             yield client
     finally:
         fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session")
+async def env() -> AsyncIterator[WorkflowEnvironment]:
+    """Temporal's time-skipping test server; downloaded once, then cached (see README for offline runs)."""
+    async with await WorkflowEnvironment.start_time_skipping(data_converter=DATA_CONVERTER) as env:
+        yield env
