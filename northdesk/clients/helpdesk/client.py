@@ -2,7 +2,7 @@
 
 Contract: POST /actions with an Idempotency-Key header. A repeated key returns the original result with
 `replayed: true` and performs nothing. 5xx (including a response lost after the action was committed),
-timeouts, connection errors, 408 and 429 are temporary; any other 4xx means the request itself is wrong.
+timeouts, connection errors, 408, 409 and 429 are temporary; any other 4xx means the request itself is wrong.
 """
 
 from dataclasses import dataclass
@@ -28,8 +28,9 @@ class HelpdeskReceipt:
     replayed: bool  # True when the helpdesk had already performed this idempotency key
 
 
-# 4xx statuses that say "not now" rather than "never": the same request may succeed later.
-_TEMPORARY_CLIENT_ERRORS = frozenset({HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS})
+# 4xx statuses that say "not now" rather than "never": the same request may succeed later. 409 is how an
+# idempotency-key server says "a request with this key is still in flight" (IETF Idempotency-Key draft).
+_TEMPORARY_CLIENT_ERRORS = frozenset({HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.CONFLICT, HTTPStatus.TOO_MANY_REQUESTS})
 
 
 class HelpdeskClient:

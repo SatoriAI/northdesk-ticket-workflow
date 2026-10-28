@@ -48,7 +48,7 @@ async def test_perform__replayed_key_is_reported() -> None:
     assert receipt.replayed is True
 
 
-@pytest.mark.parametrize("status", [408, 429, 500, 502, 503])
+@pytest.mark.parametrize("status", [408, 409, 429, 500, 502, 503])
 async def test_perform__server_error_is_temporary(status: int) -> None:
     with pytest.raises(HelpdeskUnavailableError):
         await perform(lambda _: httpx.Response(status))
@@ -62,7 +62,7 @@ async def test_perform__connection_error_is_temporary() -> None:
         await perform(handler)
 
 
-@pytest.mark.parametrize("status", [400, 409, 422])
+@pytest.mark.parametrize("status", [400, 404, 422])
 async def test_perform__client_error_is_rejected(status: int) -> None:
     with pytest.raises(HelpdeskRejectedError):
         await perform(lambda _: httpx.Response(status))
