@@ -337,6 +337,20 @@ async def test_run__cancel_while_deciding_cancels_without_acting(env: WorkflowEn
         await handle.result()
     assert is_cancelled_exception(raised.value.cause)
     assert stubs.performed == []
+    state = await handle.query(TicketWorkflow.state)
+    assert (state.step, state.history[-1].reason) == (Step.CANCELLED, "cancelled at deciding")
+
+
+async def test_run__cancel_while_awaiting_approval_shows_cancelled(env: WorkflowEnvironment, stubs: Stubs) -> None:
+    handle = await awaiting_refund(env)
+
+    await handle.cancel()
+
+    with pytest.raises(WorkflowFailureError):
+        await handle.result()
+    state = await handle.query(TicketWorkflow.state)
+    assert (state.step, state.history[-1].reason) == (Step.CANCELLED, "cancelled at awaiting_approval")
+    assert stubs.performed == []
 
 
 async def test_run__load_context_failure_ends_in_failed_step(env: WorkflowEnvironment, stubs: Stubs) -> None:

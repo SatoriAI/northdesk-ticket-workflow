@@ -84,7 +84,7 @@ class ActionStore:
             raise KeyReusedError(key)
         return self._to_out(row, replayed=inserted == 0)
 
-    def list(self) -> list[ActionOut]:
+    def all(self) -> list[ActionOut]:
         with self._lock:
             rows = self._db.execute("SELECT * FROM actions ORDER BY rowid").fetchall()
         return [self._to_out(row, replayed=False) for row in rows]
@@ -185,7 +185,7 @@ def create_app(settings: HelpdeskServiceSettings | None = None, rng: random.Rand
 
     @app.get("/actions")
     def list_actions(store: StoreDep) -> list[ActionOut]:
-        return store.list()
+        return store.all()
 
     @app.get("/health")
     def health() -> dict[str, str]:

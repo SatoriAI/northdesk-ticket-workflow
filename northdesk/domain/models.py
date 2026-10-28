@@ -34,7 +34,8 @@ class Step(StrEnum):
     AWAITING_APPROVAL = "awaiting_approval"
     ACTING = "acting"
     COMPLETED = "completed"
-    FAILED = "failed"  # the action could not be carried out; see the last history entry
+    FAILED = "failed"  # the ticket could not be finished (an activity ran out of attempts); see the last history entry
+    CANCELLED = "cancelled"  # the workflow was cancelled from outside
 
 
 class ApprovalDecision(StrEnum):

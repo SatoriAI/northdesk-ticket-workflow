@@ -5,6 +5,8 @@ act, and each action type is carried out at most once per workflow, which is wha
 "{workflow_id}:{action}" unique.
 """
 
+import asyncio
+
 from temporalio import workflow
 from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
 
@@ -71,12 +73,16 @@ class TicketWorkflow:
             self._advance(Step.ACTING, reason)
             await self._act(command)
         except ActivityError as exc:
-            if is_cancelled_exception(exc):  # the workflow itself was cancelled: stop, record nothing
+            if is_cancelled_exception(exc):  # the workflow itself was cancelled while an activity ran
+                self._advance(Step.CANCELLED, f"cancelled at {self._state.step}")
                 raise
             # Any other failure that reaches here ends the ticket: say where it stopped and why, then fail.
             reason = self._failure_reason(exc)
             self._advance(Step.FAILED, reason)
             raise ApplicationError(reason, type=TICKET_FAILED, non_retryable=True) from exc
+        except asyncio.CancelledError:  # cancelled while waiting (for approval): no activity to wrap it
+            self._advance(Step.CANCELLED, f"cancelled at {self._state.step}")
+            raise
         self._advance(Step.COMPLETED, f"{command.action} done")
         return self._state
 
@@ -148,8 +154,8 @@ class TicketWorkflow:
         try:
             await workflow.wait_condition(lambda: self._state.approval is not None, timeout=APPROVAL_TIMEOUT)
         except TimeoutError:
-            hours = int(APPROVAL_TIMEOUT.total_seconds() // 3600)
-            return _escalation(refund.category, refund.priority, f"refund not approved within {hours} h")
+            hours = APPROVAL_TIMEOUT.total_seconds() / 3600  # :g keeps 24 h as "24", and 30 min as "0.5"
+            return _escalation(refund.category, refund.priority, f"refund not approved within {hours:g} h")
         approval = self._state.approval
         assert approval is not None  # the wait condition guarantees it  # noqa: S101
         comment = f": {approval.comment!r}" if approval.comment else ""

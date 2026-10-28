@@ -44,6 +44,9 @@ services:
   worker:
     <<: *app
     command: ["python", "-m", "northdesk.workflows.worker"]
+    # As PID 1 the worker gets no default SIGTERM handling; SIGINT ends asyncio.run cleanly instead of a SIGKILL
+    # after the grace period, which would leave an in-flight activity to time out.
+    stop_signal: SIGINT
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       HELPDESK_URL: http://helpdesk:8001

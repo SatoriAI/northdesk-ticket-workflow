@@ -23,9 +23,11 @@ def test_llm_settings__real_mode_with_empty_key_fails() -> None:
         LlmSettings(mode="real", api_key="")
 
 
-def test_settings__copied_env_example_uses_the_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_settings__copied_env_example_uses_the_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Every name in .env.example is empty; set them all empty and the defaults must still apply."""
-    for line in (Path(__file__).parents[2] / ".env.example").read_text().splitlines():
+    env_example = Path(__file__).parents[2] / ".env.example"
+    monkeypatch.chdir(tmp_path)  # away from the repo, so a developer's own .env cannot leak in
+    for line in env_example.read_text().splitlines():
         if line and not line.startswith("#"):
             monkeypatch.setenv(line.split("=", 1)[0], "")
 

@@ -25,8 +25,9 @@ class LlmSettings(ServiceSettings):
     mode: Literal["fake", "real"] = "fake"
     provider: Literal["anthropic"] = "anthropic"
     model: str = "claude-opus-5-5"
-    # Per model call; the whole agent loop (up to six calls) must fit in DECIDE_TIMEOUT (4 min).
-    timeout_seconds: float = Field(default=30.0, gt=0)
+    # Per model call; the whole agent loop (up to six calls) must fit in DECIDE_TIMEOUT (7 min). Generous because
+    # the default model always thinks before answering.
+    timeout_seconds: float = Field(default=60.0, gt=0)
     # Optional so the fake mode needs no key; the real mode requires it (checked below).
     api_key: SecretStr | None = None
 
@@ -41,7 +42,7 @@ class HelpdeskSettings(ServiceSettings):
     model_config = SettingsConfigDict(env_prefix="HELPDESK_")
 
     url: str = "http://localhost:8001"
-    timeout_seconds: float = 5.0
+    timeout_seconds: float = Field(default=5.0, gt=0)
 
 
 class ApiSettings(ServiceSettings):
