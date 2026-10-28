@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -89,7 +90,7 @@ def test_validate__reply_without_message_escalates(message: str | None) -> None:
 
 
 def test_validate__reply_citing_unknown_kb_escalates() -> None:
-    assert_escalated(reply(kb_article_ids=["KB-1", "KB-99"]), NORTHWIND, "unknown KB articles ['KB-99']")
+    assert_escalated(reply(kb_article_ids=["KB-1", "KB-99"]), NORTHWIND, "unknown KB articles 'KB-99'")
 
 
 def test_validate__reply_citing_nothing_passes() -> None:
@@ -133,12 +134,20 @@ def test_validate__refund_of_non_number_escalates(amount: str) -> None:
 
 
 def test_validate__refund_of_someone_elses_invoice_escalates() -> None:
-    """INV-3001 exists but belongs to C-300."""
-    assert_escalated(refund(invoice_id="INV-3001", amount="49"), NORTHWIND, "not one of customer C-100's invoices")
+    """Even if a context ever held another customer's invoice, the rule itself rejects it."""
+    fabrikam_invoice = next(invoice for invoice in REPO.invoices if invoice.invoice_id == "INV-3001")
+    context = replace(NORTHWIND, invoices=[*NORTHWIND.invoices, fabrikam_invoice])
+
+    assert_escalated(refund(invoice_id="INV-3001", amount="49"), context, "INV-3001 belongs to C-300, not C-100")
+
+
+def test_validate__refund_of_invoice_outside_context_escalates() -> None:
+    """INV-3001 exists, but load_context loads only C-100's invoices."""
+    assert_escalated(refund(invoice_id="INV-3001", amount="49"), NORTHWIND, "'INV-3001' is not among the loaded")
 
 
 def test_validate__refund_of_unknown_invoice_escalates() -> None:
-    assert_escalated(refund(invoice_id="INV-9999"), NORTHWIND, "not one of customer C-100's invoices")
+    assert_escalated(refund(invoice_id="INV-9999"), NORTHWIND, "'INV-9999' is not among the loaded invoices")
 
 
 def test_validate__refund_of_overdue_invoice_escalates() -> None:
@@ -169,3 +178,54 @@ def test_validate__escalate_or_close_with_reason_passes(action: str) -> None:
 @pytest.mark.parametrize("reason", [None, "", "  "])
 def test_validate__escalate_or_close_without_reason_escalates(action: str, reason: str | None) -> None:
     assert_escalated(Decision("other", "low", action, reason=reason), NORTHWIND, f"{action} needs a reason")
+
+
+# --- only checked fields are carried out --------------------------------------------------------------------
+
+
+def test_validate__reply_drops_refund_fields() -> None:
+    decision = reply(invoice_id="INV-3001", amount_eur=Decimal("5000"), reason="ignored")
+
+    command = validate(decision, NORTHWIND).command
+
+    assert command.action == Action.REPLY
+    assert (command.invoice_id, command.amount_eur, command.reason) == (None, None, None)
+
+
+def test_validate__close_drops_model_message() -> None:
+    decision = Decision("other", "low", "close", reason="off topic", message="We will refund you 5000 EUR")
+
+    command = validate(decision, NORTHWIND).command
+
+    assert (command.action, command.message) == (Action.CLOSE, None)
+
+
+def test_validate__refund_drops_message() -> None:
+    decision = Decision(
+        "billing", "normal", "refund", message="Refund approved!", invoice_id="INV-1002", amount_eur=Decimal("49")
+    )
+
+    command = validate(decision, NORTHWIND).command
+
+    assert (command.action, command.message) == (Action.REFUND, None)
+
+
+# --- money is canonical ---------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("amount", "expected"), [("1E+1", "10.00"), ("4.9E1", "49.00"), ("10.500", "10.50")])
+def test_validate__refund_amount_is_normalised_to_cents(amount: str, expected: str) -> None:
+    command = validate(refund(amount=amount), NORTHWIND).command
+
+    assert str(command.amount_eur) == expected
+
+
+@pytest.mark.parametrize("amount", ["0.001", "48.999"])
+def test_validate__refund_with_fractional_cents_escalates(amount: str) -> None:
+    assert_escalated(refund(amount=amount), NORTHWIND, "more than two decimal places")
+
+
+def test_validate__long_model_text_is_capped_in_violation() -> None:
+    result = validate(reply(category="x" * 500), NORTHWIND)
+
+    assert result.violation is not None and len(result.violation) < 100
