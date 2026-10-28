@@ -5,7 +5,7 @@ from typing import Any
 
 from northdesk.agent.parsing import DecisionFormatError, parse_decision
 from northdesk.agent.tools import SUBMIT_DECISION, TOOL_SPECS, ToolBox
-from northdesk.clients.llm.base import LlmClient, LlmTurn, Message
+from northdesk.clients.llm.base import LlmClient, LlmTurn, Message, OnTurn
 from northdesk.domain.models import Decision, Ticket
 
 MAX_TURNS = 6
@@ -36,10 +36,15 @@ class UnparseableDecisionError(Exception):
     """The model gave no usable decision within MAX_TURNS."""
 
 
-async def run_agent(llm: LlmClient, ticket: Ticket, tools: ToolBox, *, max_turns: int = MAX_TURNS) -> Decision:
+async def run_agent(
+    llm: LlmClient, ticket: Ticket, tools: ToolBox, *, max_turns: int = MAX_TURNS, on_turn: OnTurn | None = None
+) -> Decision:
+    """`on_turn` runs after every model response; the decide activity uses it to heartbeat."""
     messages: list[Message] = [{"role": "user", "content": render_ticket(ticket)}]
     for _ in range(max_turns):
         turn = await llm.complete(system=SYSTEM_PROMPT, messages=messages, tools=TOOL_SPECS)
+        if on_turn is not None:
+            on_turn()
         messages.append(_assistant_message(turn))
         if not turn.tool_calls:
             messages.append({"role": "user", "content": NUDGE})
@@ -65,6 +70,8 @@ def render_ticket(ticket: Ticket) -> str:
 
 
 def _assistant_message(turn: LlmTurn) -> Message:
+    if turn.raw_content is not None:
+        return {"role": "assistant", "content": turn.raw_content}
     content: list[dict[str, Any]] = [{"type": "text", "text": turn.text}] if turn.text else []
     content += [{"type": "tool_use", "id": c.id, "name": c.name, "input": c.arguments} for c in turn.tool_calls]
     return {"role": "assistant", "content": content}

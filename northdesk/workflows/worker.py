@@ -7,6 +7,7 @@ import httpx
 from temporalio.worker import Worker
 
 from northdesk.clients.helpdesk.client import HelpdeskClient
+from northdesk.clients.llm.anthropic_client import AnthropicLlm
 from northdesk.clients.llm.base import LlmClient
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
@@ -41,7 +42,10 @@ async def run(settings: WorkerSettings) -> None:
 def build_llm(settings: LlmSettings) -> LlmClient:
     if settings.mode == "fake":
         return FakeLlm()
-    raise SystemExit("LLM_MODE=real is not available yet; use LLM_MODE=fake")
+    assert settings.api_key is not None  # LlmSettings refuses real mode without a key  # noqa: S101
+    return AnthropicLlm(
+        api_key=settings.api_key.get_secret_value(), model=settings.model, timeout_seconds=settings.timeout_seconds
+    )
 
 
 def main() -> None:

@@ -5,6 +5,7 @@ description = "Agentic support-ticket workflow on FastAPI and Temporal"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "anthropic>=1,<2",
     "fastapi>=0.121,<1",
     "httpx>=0.28.1,<1",
     "pydantic>=2.14.1,<3",

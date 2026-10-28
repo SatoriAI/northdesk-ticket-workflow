@@ -8,12 +8,14 @@ from temporalio.testing import ActivityEnvironment
 
 from northdesk.agent.loop import MAX_TURNS
 from northdesk.clients.helpdesk.client import HelpdeskClient, HelpdeskUnavailableError
+from northdesk.clients.llm.anthropic_client import LlmRejectedError
 from northdesk.clients.llm.base import LlmClient, LlmTurn
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
 from northdesk.domain.models import Action, ActionResult, Category, Command, Decision, Priority
 from northdesk.workflows.activities import (
     HELPDESK_REJECTED,
+    LLM_REJECTED,
     UNPARSEABLE_DECISION,
     ActInput,
     DecideInput,
@@ -80,3 +82,15 @@ async def test_decide__no_usable_decision_is_not_retried() -> None:
 
     assert raised.value.non_retryable
     assert raised.value.type == UNPARSEABLE_DECISION
+
+
+async def test_decide__rejected_llm_request_is_not_retried() -> None:
+    class RejectingLlm:
+        async def complete(self, **_: object) -> LlmTurn:
+            raise LlmRejectedError("LLM rejected the request: HTTP 401")
+
+    with pytest.raises(ApplicationError) as raised:
+        await decide_with(RejectingLlm(), "T-1")
+
+    assert raised.value.non_retryable
+    assert raised.value.type == LLM_REJECTED
