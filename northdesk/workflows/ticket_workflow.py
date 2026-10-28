@@ -42,7 +42,8 @@ class TicketWorkflow:
         )
         self._state.decision = decision
 
-        self._advance(Step.VALIDATING, f"agent proposed {decision.category}/{decision.priority}/{decision.action}")
+        # The decision is untrusted model text; only validated values go into history and logs.
+        self._advance(Step.VALIDATING, "agent proposed a decision")
         # Pure and deterministic, so it runs in the workflow itself, against the data load_context returned.
         validation = validate(decision, context)
         command = validation.command
@@ -56,7 +57,7 @@ class TicketWorkflow:
             )
             acting_reason = "escalating: refund approval is not implemented yet"
         else:
-            acting_reason = f"validated {command.action}"
+            acting_reason = f"validated {command.category}/{command.priority}/{command.action}"
         self._state.command = command
 
         self._advance(Step.ACTING, acting_reason)

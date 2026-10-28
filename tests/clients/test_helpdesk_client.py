@@ -48,7 +48,7 @@ async def test_perform__replayed_key_is_reported() -> None:
     assert receipt.replayed is True
 
 
-@pytest.mark.parametrize("status", [500, 502, 503])
+@pytest.mark.parametrize("status", [408, 429, 500, 502, 503])
 async def test_perform__server_error_is_temporary(status: int) -> None:
     with pytest.raises(HelpdeskUnavailableError):
         await perform(lambda _: httpx.Response(status))

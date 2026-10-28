@@ -2,10 +2,11 @@
 
 Contract: POST /actions with an Idempotency-Key header. A repeated key returns the original result with
 `replayed: true` and performs nothing. 5xx (including a response lost after the action was committed),
-timeouts and connection errors are temporary; any 4xx means the request itself is wrong.
+timeouts, connection errors, 408 and 429 are temporary; any other 4xx means the request itself is wrong.
 """
 
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Any
 
 import httpx
@@ -27,6 +28,10 @@ class HelpdeskReceipt:
     replayed: bool  # True when the helpdesk had already performed this idempotency key
 
 
+# 4xx statuses that say "not now" rather than "never": the same request may succeed later.
+_TEMPORARY_CLIENT_ERRORS = frozenset({HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS})
+
+
 class HelpdeskClient:
     def __init__(self, http: httpx.AsyncClient) -> None:
         self._http = http
@@ -40,7 +45,7 @@ class HelpdeskClient:
             )
         except httpx.TransportError as exc:
             raise HelpdeskUnavailableError(f"helpdesk unreachable: {exc!r}") from exc
-        if response.is_server_error:
+        if response.is_server_error or response.status_code in _TEMPORARY_CLIENT_ERRORS:
             raise HelpdeskUnavailableError(f"helpdesk returned {response.status_code}")
         if response.is_client_error:
             raise HelpdeskRejectedError(f"helpdesk rejected the request with {response.status_code}")
