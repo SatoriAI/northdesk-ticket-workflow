@@ -27,6 +27,10 @@ class _DecimalEncoder(AdvancedJSONEncoder):
 class _DecimalTypeConverter(JSONTypeConverter):
     def to_typed_value(self, hint: type, value: Any) -> Any:
         if hint is Decimal:
+            # Only exact strings: a JSON number has already been through float, so 49.1 would arrive as
+            # 49.10000000000000142... and pass every comparison it should not.
+            if not isinstance(value, str):
+                raise TypeError(f"Decimal must be sent as a JSON string, got {type(value).__name__}")
             return Decimal(value)
         return JSONTypeConverter.Unhandled
 

@@ -1,5 +1,8 @@
 from decimal import Decimal
 
+import pytest
+from temporalio.api.common.v1 import Payload
+
 from northdesk.domain.models import Customer, Decision, Invoice, TicketContext
 from northdesk.workflows.converter import DATA_CONVERTER
 
@@ -26,3 +29,14 @@ def test_round_trip__optional_decimal_both_ways() -> None:
     payloads = converter.to_payloads([refund, reply])
 
     assert converter.from_payloads(payloads, [Decision, Decision]) == [refund, reply]
+
+
+def test_decode__decimal_from_json_number_is_rejected() -> None:
+    converter = DATA_CONVERTER.payload_converter
+    payload = Payload(
+        metadata={"encoding": b"json/plain"},
+        data=b'{"category":"billing","priority":"normal","action":"refund","amount_eur":49.1}',
+    )
+
+    with pytest.raises(TypeError, match="Failed converting field amount_eur"):
+        converter.from_payloads([payload], [Decision])
