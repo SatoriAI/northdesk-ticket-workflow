@@ -11,7 +11,7 @@ import pytest
 from northdesk.agent.loop import run_agent
 from northdesk.clients.llm.anthropic_client import AnthropicLlm
 from northdesk.clients.llm.base import LlmRejectedError, LlmUnavailableError
-from tests.agent.conftest import REPO, toolbox_for
+from tests.support import REPO, toolbox_for
 
 Handler = Callable[[httpx2.Request], httpx2.Response]
 THINKING = {"type": "thinking", "thinking": "", "signature": "sig-1"}

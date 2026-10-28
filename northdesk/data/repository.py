@@ -6,7 +6,7 @@ from decimal import Decimal
 from importlib import resources
 from typing import Any
 
-from northdesk.domain.models import Customer, Invoice, KbArticle, Ticket
+from northdesk.domain.models import Customer, Invoice, KbArticle, Ticket, TicketContext
 
 
 def _load(name: str) -> list[dict[str, Any]]:
@@ -36,3 +36,14 @@ class DataRepository:
 
     def invoices_of(self, customer_id: str) -> list[Invoice]:
         return [invoice for invoice in self.invoices if invoice.customer_id == customer_id]
+
+    def context_for(self, customer_id: str) -> TicketContext | None:
+        """What a ticket of this customer is decided and validated against, or None for an unknown customer."""
+        customer = self.customer(customer_id)
+        if customer is None:
+            return None
+        return TicketContext(
+            customer=customer,
+            invoices=self.invoices_of(customer_id),
+            kb_article_ids=[article.article_id for article in self.kb],
+        )

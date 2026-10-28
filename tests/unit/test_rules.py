@@ -3,22 +3,9 @@ from decimal import Decimal
 
 import pytest
 
-from northdesk.data.repository import DataRepository
 from northdesk.domain.models import Action, Category, Decision, Priority, TicketContext
 from northdesk.domain.rules import validate
-
-REPO = DataRepository.load()
-
-
-def context_for(customer_id: str) -> TicketContext:
-    customer = REPO.customer(customer_id)
-    assert customer is not None
-    return TicketContext(
-        customer=customer,
-        invoices=REPO.invoices_of(customer_id),
-        kb_article_ids=[article.article_id for article in REPO.kb],
-    )
-
+from tests.support import REPO, context_for
 
 NORTHWIND = context_for("C-100")  # INV-1001 and INV-1002, both paid 49 EUR
 TAILSPIN = context_for("C-400")  # INV-4001, overdue
@@ -128,9 +115,8 @@ def test_validate__refund_of_zero_or_less_escalates(amount: str) -> None:
 
 @pytest.mark.parametrize("amount", ["NaN", "sNaN", "Infinity"])
 def test_validate__refund_of_non_number_escalates(amount: str) -> None:
-    result = validate(refund(amount=amount), NORTHWIND)
-
-    assert result.command.action == Action.ESCALATE
+    # The message pins the NaN guard: "Infinity" alone would also escalate, via the range check.
+    assert_escalated(refund(amount=amount), NORTHWIND, "is not a number")
 
 
 def test_validate__refund_of_someone_elses_invoice_escalates() -> None:

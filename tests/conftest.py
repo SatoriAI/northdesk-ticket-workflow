@@ -1,106 +1,72 @@
 import os
 from collections.abc import AsyncIterator
-from types import SimpleNamespace
-from typing import Any
+from datetime import timedelta
 
 import httpx
 import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 from starlette.types import ASGIApp
-from temporalio.exceptions import WorkflowAlreadyStartedError
-from temporalio.service import RPCError, RPCStatusCode
 from temporalio.testing import WorkflowEnvironment
+from temporalio.worker import Worker
 
+from northdesk.api import tickets as tickets_api
 from northdesk.api.deps import get_temporal_client
 from northdesk.main import create_app
 from northdesk.settings import ApiSettings, TemporalSettings
+from northdesk.workflows.client import logging_runtime
 from northdesk.workflows.converter import DATA_CONVERTER
+from northdesk.workflows.ticket_workflow import TicketWorkflow
+from tests.support import Stubs
 
 
-class FakeServiceClient:
-    def __init__(self) -> None:
-        self.serving = True
-
-    async def check_health(self, **_: Any) -> bool:
-        return self.serving
-
-
-class FakeTemporalClient:
-    """Stands in for temporalio.client.Client at the API boundary; tests extend it as endpoints need.
-
-    start_workflow mimics the SDK behaviour that tests/workflows/test_starter.py pins against a real server.
-    """
-
-    def __init__(self) -> None:
-        self.service_client = FakeServiceClient()
-        self.workflows: dict[str, str] = {}  # workflow ID -> "running" | "closed"
-        self.states: dict[str, Any] = {}  # workflow ID -> what its query or Update returns, while it runs
-        self.call_errors: dict[str, Exception] = {}  # workflow ID -> what its query or Update raises instead
-        self.updates: list[tuple[str, Any]] = []  # (workflow ID, request) of every Update sent
-
-    async def start_workflow(self, _workflow: Any, _arg: Any, *, id: str, **_: Any) -> SimpleNamespace:
-        if self.workflows.get(id) == "closed":
-            raise WorkflowAlreadyStartedError(id, "TicketWorkflow")
-        started = id not in self.workflows
-        self.workflows[id] = "running"
-        return SimpleNamespace(_start_workflow_response=SimpleNamespace(started=started))
-
-    def get_workflow_handle(self, workflow_id: str) -> FakeHandle:
-        return FakeHandle(self, workflow_id)
-
-
-class FakeHandle:
-    """A workflow handle whose query, Update and describe answer from the fake client's dictionaries."""
-
-    def __init__(self, client: FakeTemporalClient, workflow_id: str) -> None:
-        self.client, self.id = client, workflow_id
-
-    async def query(self, _query: Any, **_: Any) -> Any:
-        if self.id in self.client.call_errors:
-            raise self.client.call_errors[self.id]
-        if self.id not in self.client.states:
-            raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
-        return self.client.states[self.id]
-
-    async def execute_update(self, _update: Any, request: Any, **_: Any) -> Any:
-        self.client.updates.append((self.id, request))
-        if self.id in self.client.call_errors:
-            raise self.client.call_errors[self.id]
-        if self.id not in self.client.states or self.client.workflows.get(self.id) == "closed":
-            # Like the server: NOT_FOUND for an unknown workflow and for a finished one alike.
-            raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
-        return self.client.states[self.id]
-
-    async def describe(self, **_: Any) -> SimpleNamespace:
-        if self.id not in self.client.workflows:
-            raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
-        return SimpleNamespace(status=self.client.workflows[self.id])
+@pytest.fixture
+async def env() -> AsyncIterator[WorkflowEnvironment]:
+    """Temporal's time-skipping test server, one per test (about 0.1 s each). Not shared: a test that ends with
+    work still outstanding (an activity mid-run, a workflow no worker polls) stops a shared server from skipping
+    time for every later test."""
+    # TEMPORAL_TEST_SERVER_DIR points at a pre-downloaded binary (the Docker test image sets it), so the tests do not
+    # depend on what happens to be cached in the system temp directory. The runtime keeps core warnings quiet.
+    async with await WorkflowEnvironment.start_time_skipping(
+        data_converter=DATA_CONVERTER,
+        download_dest_dir=os.environ.get("TEMPORAL_TEST_SERVER_DIR"),
+        runtime=logging_runtime(),
+    ) as env:
+        yield env
 
 
 @pytest.fixture(scope="session")
-def test_settings() -> ApiSettings:
-    # Nothing listens here: the lifespan's lazy client must never be used by the tests.
+def api_settings() -> ApiSettings:
+    # The app's own (lazy) client points at a closed port: tests swap in the test server's client, except the ones
+    # that check what happens when Temporal cannot be reached.
     return ApiSettings(enable_docs=False, temporal=TemporalSettings(address="127.0.0.1:1"))
 
 
 @pytest.fixture(scope="session")
-async def app(test_settings: ApiSettings) -> AsyncIterator[tuple[FastAPI, ASGIApp]]:
+async def app(api_settings: ApiSettings) -> AsyncIterator[tuple[FastAPI, ASGIApp]]:
     """One app per test session, running its real lifespan."""
-    fastapi_app = create_app(test_settings)
+    fastapi_app = create_app(api_settings)
     async with LifespanManager(fastapi_app) as manager:
         yield fastapi_app, manager.app
 
 
 @pytest.fixture
-def temporal_client() -> FakeTemporalClient:
-    return FakeTemporalClient()
+async def unreachable_api(app: tuple[FastAPI, ASGIApp]) -> AsyncIterator[httpx.AsyncClient]:
+    """The API with its own client, which cannot reach Temporal."""
+    _, asgi_app = app
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=asgi_app), base_url="http://test") as client:
+        yield client
 
 
 @pytest.fixture
-async def client(app: tuple[FastAPI, ASGIApp], temporal_client: FakeTemporalClient) -> AsyncIterator[httpx.AsyncClient]:
+async def api_without_worker(
+    app: tuple[FastAPI, ASGIApp], env: WorkflowEnvironment, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[httpx.AsyncClient]:
+    """The API on a real Temporal server with no worker: workflows start and stay put; queries and Updates go
+    unanswered (and give up after 1 s instead of 10)."""
+    monkeypatch.setattr(tickets_api, "CALL_TIMEOUT", timedelta(seconds=1))
     fastapi_app, asgi_app = app
-    fastapi_app.dependency_overrides[get_temporal_client] = lambda: temporal_client
+    fastapi_app.dependency_overrides[get_temporal_client] = lambda: env.client
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=asgi_app), base_url="http://test") as client:
             yield client
@@ -109,13 +75,15 @@ async def client(app: tuple[FastAPI, ASGIApp], temporal_client: FakeTemporalClie
 
 
 @pytest.fixture
-async def env() -> AsyncIterator[WorkflowEnvironment]:
-    """Temporal's time-skipping test server, one per test (about 0.1 s each); the binary is downloaded once, then
-    cached (see README for offline runs). Not shared: a test that ends with work still outstanding (an activity
-    mid-run, a workflow no worker polls) stops a shared server from skipping time for every later test."""
-    # TEMPORAL_TEST_SERVER_DIR points at a pre-downloaded binary (the Docker test image sets it), so the tests
-    # never depend on whatever happens to be cached in the system temp directory.
-    async with await WorkflowEnvironment.start_time_skipping(
-        data_converter=DATA_CONVERTER, download_dest_dir=os.environ.get("TEMPORAL_TEST_SERVER_DIR")
-    ) as env:
-        yield env
+async def api(
+    api_without_worker: httpx.AsyncClient, env: WorkflowEnvironment, api_settings: ApiSettings
+) -> AsyncIterator[httpx.AsyncClient]:
+    """The API on a real Temporal server, with a worker running the real workflow on stub activities."""
+    stubs = Stubs()
+    async with Worker(
+        env.client,
+        task_queue=api_settings.temporal.task_queue,  # the queue the API starts workflows on
+        workflows=[TicketWorkflow],
+        activities=[stubs.load_context, stubs.decide, stubs.act],
+    ):
+        yield api_without_worker

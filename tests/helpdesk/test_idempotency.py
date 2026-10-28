@@ -2,7 +2,6 @@
 the real act activity, exactly one refund exists."""
 
 import uuid
-from decimal import Decimal
 
 import httpx
 from temporalio import workflow
@@ -12,12 +11,11 @@ from temporalio.worker import Worker
 from northdesk.clients.helpdesk.client import HelpdeskClient
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
-from northdesk.domain.models import Action, ActionResult, Category, Command, Priority
+from northdesk.domain.models import ActionResult
 from northdesk.workflows.activities import ActInput, TicketActivities
 from northdesk.workflows.policies import ACT_RETRY, ACT_TIMEOUT
 from tests.helpdesk.conftest import LOSE_RESPONSE, OK
-
-REFUND = Command(Action.REFUND, Category.BILLING, Priority.NORMAL, invoice_id="INV-1002", amount_eur=Decimal("49.00"))
+from tests.support import REFUND
 
 
 @workflow.defn(sandboxed=False)

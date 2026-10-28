@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from decimal import Decimal
 
 import httpx
 import pytest
@@ -11,7 +10,7 @@ from northdesk.clients.helpdesk.client import HelpdeskClient, HelpdeskUnavailabl
 from northdesk.clients.llm.base import LlmClient, LlmRejectedError, LlmTurn
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
-from northdesk.domain.models import Action, ActionResult, Category, Command, Decision, Priority
+from northdesk.domain.models import ActionResult, Decision
 from northdesk.workflows.activities import (
     HELPDESK_REJECTED,
     LLM_REJECTED,
@@ -20,9 +19,7 @@ from northdesk.workflows.activities import (
     DecideInput,
     TicketActivities,
 )
-from tests.agent.conftest import ScriptedLlm
-
-REFUND = Command(Action.REFUND, Category.BILLING, Priority.NORMAL, invoice_id="INV-1002", amount_eur=Decimal("49.00"))
+from tests.support import REFUND, ScriptedLlm
 
 
 async def act_with(handler: Callable[[httpx.Request], httpx.Response]) -> ActionResult:

@@ -1,5 +1,5 @@
 from northdesk.agent.tools import TOOL_SPECS
-from tests.agent.conftest import REPO, toolbox_for
+from tests.support import REPO, toolbox_for
 
 
 def test_search_kb__finds_the_password_article() -> None:

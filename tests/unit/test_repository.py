@@ -23,3 +23,15 @@ def test_customer__unknown_is_none() -> None:
 def test_invoices_of__only_that_customer() -> None:
     assert [invoice.invoice_id for invoice in REPO.invoices_of("C-100")] == ["INV-1001", "INV-1002"]
     assert REPO.invoices_of("C-200") == []
+
+
+def test_context_for__customer_invoices_and_kb_ids() -> None:
+    context = REPO.context_for("C-400")
+
+    assert context is not None
+    assert (context.customer.status, [i.invoice_id for i in context.invoices]) == ("suspended", ["INV-4001"])
+    assert context.kb_article_ids == ["KB-1", "KB-2", "KB-3", "KB-4"]
+
+
+def test_context_for__unknown_customer_is_none() -> None:
+    assert REPO.context_for("C-999") is None

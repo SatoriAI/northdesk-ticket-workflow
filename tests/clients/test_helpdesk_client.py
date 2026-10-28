@@ -1,6 +1,5 @@
 import json
 from collections.abc import Callable
-from decimal import Decimal
 
 import httpx
 import pytest
@@ -11,9 +10,7 @@ from northdesk.clients.helpdesk.client import (
     HelpdeskRejectedError,
     HelpdeskUnavailableError,
 )
-from northdesk.domain.models import Action, Category, Command, Priority
-
-REFUND = Command(Action.REFUND, Category.BILLING, Priority.NORMAL, invoice_id="INV-1002", amount_eur=Decimal("49.00"))
+from tests.support import REFUND
 
 
 def client_for(handler: Callable[[httpx.Request], httpx.Response]) -> HelpdeskClient:

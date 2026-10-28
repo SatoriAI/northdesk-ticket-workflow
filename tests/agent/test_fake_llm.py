@@ -8,7 +8,7 @@ from northdesk.agent.loop import run_agent
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.domain.models import Action
 from northdesk.domain.rules import validate
-from tests.agent.conftest import REPO, toolbox_for
+from tests.support import REPO, toolbox_for
 
 
 @pytest.mark.parametrize(
