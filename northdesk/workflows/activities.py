@@ -5,13 +5,16 @@ from dataclasses import dataclass
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
+from northdesk.agent.loop import UnparseableDecisionError, run_agent
+from northdesk.agent.tools import ToolBox
 from northdesk.clients.helpdesk.client import HelpdeskClient, HelpdeskRejectedError
-from northdesk.clients.llm.fake import FakeLlm
+from northdesk.clients.llm.base import LlmClient
 from northdesk.data.repository import DataRepository
 from northdesk.domain.models import ActionResult, Command, Decision, Ticket, TicketContext
 
 UNKNOWN_CUSTOMER = "UnknownCustomer"
 HELPDESK_REJECTED = "HelpdeskRejected"
+UNPARSEABLE_DECISION = "UnparseableDecision"
 
 
 @dataclass(frozen=True)
@@ -27,7 +30,7 @@ class ActInput:
 
 
 class TicketActivities:
-    def __init__(self, repository: DataRepository, llm: FakeLlm, helpdesk: HelpdeskClient) -> None:
+    def __init__(self, repository: DataRepository, llm: LlmClient, helpdesk: HelpdeskClient) -> None:
         self._repository = repository
         self._llm = llm
         self._helpdesk = helpdesk
@@ -45,7 +48,13 @@ class TicketActivities:
 
     @activity.defn
     async def decide(self, request: DecideInput) -> Decision:
-        return await self._llm.decide(request.ticket, request.context)
+        # The tools see only what load_context loaded for this ticket's customer.
+        tools = ToolBox(context=request.context, kb=self._repository.kb)
+        try:
+            return await run_agent(self._llm, request.ticket, tools)
+        except UnparseableDecisionError as exc:
+            # Asking again would replay the same conversation; the workflow escalates instead.
+            raise ApplicationError(str(exc), type=UNPARSEABLE_DECISION, non_retryable=True) from exc
 
     @activity.defn
     async def act(self, request: ActInput) -> ActionResult:

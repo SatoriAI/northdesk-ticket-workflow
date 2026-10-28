@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 from temporalio import activity
 from temporalio.client import Client
+from temporalio.exceptions import ApplicationError
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
@@ -19,7 +20,7 @@ from northdesk.domain.models import (
     TicketContext,
     TicketState,
 )
-from northdesk.workflows.activities import ActInput, DecideInput
+from northdesk.workflows.activities import UNPARSEABLE_DECISION, ActInput, DecideInput
 from northdesk.workflows.ticket_workflow import TicketWorkflow
 
 TASK_QUEUE = "test-tickets"
@@ -45,6 +46,8 @@ async def load_context(ticket: Ticket) -> TicketContext:
 
 @activity.defn(name="decide")
 async def decide(request: DecideInput) -> Decision:
+    if request.ticket.ticket_id == "T-unparseable":
+        raise ApplicationError("no valid decision after 6 turns", type=UNPARSEABLE_DECISION, non_retryable=True)
     return DECISIONS[request.ticket.ticket_id]
 
 
@@ -118,3 +121,13 @@ async def test_run__numeric_amount_from_model_does_not_stick_the_workflow(
 
     assert state.step == Step.COMPLETED
     assert state.decision is not None and state.decision.amount_eur == Decimal("49")
+
+
+async def test_run__no_usable_decision_escalates(env: WorkflowEnvironment, recorder: ActRecorder) -> None:
+    state = await run_ticket(env.client, "T-unparseable", recorder)
+
+    assert state.step == Step.COMPLETED
+    assert state.decision is None
+    [performed] = recorder.performed
+    assert performed.command.action == Action.ESCALATE
+    assert performed.command.reason == f"the agent could not decide ({UNPARSEABLE_DECISION})"

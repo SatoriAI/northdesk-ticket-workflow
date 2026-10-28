@@ -8,10 +8,11 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from northdesk.clients.helpdesk.client import HelpdeskClient
+from northdesk.clients.llm.base import LlmClient
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
 from northdesk.log import configure_logging
-from northdesk.settings import WorkerSettings
+from northdesk.settings import LlmSettings, WorkerSettings
 from northdesk.workflows.activities import TicketActivities
 from northdesk.workflows.converter import DATA_CONVERTER
 from northdesk.workflows.ticket_workflow import TicketWorkflow
@@ -27,7 +28,7 @@ async def run(settings: WorkerSettings) -> None:
         base_url=settings.helpdesk.url, timeout=settings.helpdesk.timeout_seconds
     ) as helpdesk_http:
         activities = TicketActivities(
-            repository=DataRepository.load(), llm=FakeLlm(), helpdesk=HelpdeskClient(helpdesk_http)
+            repository=DataRepository.load(), llm=build_llm(settings.llm), helpdesk=HelpdeskClient(helpdesk_http)
         )
         worker = Worker(
             client,
@@ -37,6 +38,12 @@ async def run(settings: WorkerSettings) -> None:
         )
         logger.info("worker started on task queue %s (llm mode %s)", settings.temporal.task_queue, settings.llm.mode)
         await worker.run()
+
+
+def build_llm(settings: LlmSettings) -> LlmClient:
+    if settings.mode == "fake":
+        return FakeLlm()
+    raise SystemExit("LLM_MODE=real is not available yet; use LLM_MODE=fake")
 
 
 def main() -> None:

@@ -1,9 +1,21 @@
 """The ticket workflow: deterministic orchestration and state. All I/O happens in activities."""
 
 from temporalio import workflow
+from temporalio.exceptions import ActivityError, ApplicationError
 
 with workflow.unsafe.imports_passed_through():
-    from northdesk.domain.models import Action, Command, HistoryEntry, Step, Ticket, TicketState
+    from northdesk.domain.models import (
+        Action,
+        Category,
+        Command,
+        Decision,
+        HistoryEntry,
+        Priority,
+        Step,
+        Ticket,
+        TicketContext,
+        TicketState,
+    )
     from northdesk.domain.rules import validate
     from northdesk.workflows.activities import ActInput, DecideInput, TicketActivities
     from northdesk.workflows.policies import (
@@ -34,30 +46,25 @@ class TicketWorkflow:
         )
 
         self._advance(Step.DECIDING, f"customer {context.customer.customer_id} loaded")
-        decision = await workflow.execute_activity_method(
-            TicketActivities.decide,
-            DecideInput(ticket=ticket, context=context),
-            start_to_close_timeout=DECIDE_TIMEOUT,
-            retry_policy=DECIDE_RETRY,
-        )
-        self._state.decision = decision
-
-        # The decision is untrusted model text; only validated values go into history and logs.
-        self._advance(Step.VALIDATING, "agent proposed a decision")
-        # Pure and deterministic, so it runs in the workflow itself, against the data load_context returned.
-        validation = validate(decision, context)
-        command = validation.command
-        if validation.violation:
-            acting_reason = f"escalating: {validation.violation}"
-        elif command.action == Action.REFUND:
-            # Refunds need human approval, which the next step of this workflow adds. Until it exists a refund
-            # is escalated, so no refund is ever carried out unapproved.
-            command = Command(
-                Action.ESCALATE, command.category, command.priority, reason="refund awaits human approval"
+        try:
+            decision = await workflow.execute_activity_method(
+                TicketActivities.decide,
+                DecideInput(ticket=ticket, context=context),
+                start_to_close_timeout=DECIDE_TIMEOUT,
+                retry_policy=DECIDE_RETRY,
             )
-            acting_reason = "escalating: refund approval is not implemented yet"
+        except ActivityError as exc:
+            # No usable decision within the loop cap (non-retryable), or the LLM kept failing until the retries
+            # ran out: either way a person has to look at the ticket.
+            failure = exc.cause.type if isinstance(exc.cause, ApplicationError) else type(exc.cause).__name__
+            reason = f"the agent could not decide ({failure})"
+            command = Command(Action.ESCALATE, Category.OTHER, Priority.NORMAL, reason=reason)
+            acting_reason = f"escalating: {reason}"
         else:
-            acting_reason = f"validated {command.category}/{command.priority}/{command.action}"
+            self._state.decision = decision
+            # The decision is untrusted model text; only validated values go into history and logs.
+            self._advance(Step.VALIDATING, "agent proposed a decision")
+            command, acting_reason = self._validated(decision, context)
         self._state.command = command
 
         self._advance(Step.ACTING, acting_reason)
@@ -74,6 +81,21 @@ class TicketWorkflow:
     @workflow.query
     def state(self) -> TicketState:
         return self._state
+
+    @staticmethod
+    def _validated(decision: Decision, context: TicketContext) -> tuple[Command, str]:
+        """The command to carry out and the reason recorded for it."""
+        # Pure and deterministic, so it runs in the workflow itself, against the data load_context returned.
+        validation = validate(decision, context)
+        command = validation.command
+        if validation.violation:
+            return command, f"escalating: {validation.violation}"
+        if command.action == Action.REFUND:
+            # Refunds need human approval, which the next step of this workflow adds. Until it exists a refund
+            # is escalated, so no refund is ever carried out unapproved.
+            held = Command(Action.ESCALATE, command.category, command.priority, reason="refund awaits human approval")
+            return held, "escalating: refund approval is not implemented yet"
+        return command, f"validated {command.category}/{command.priority}/{command.action}"
 
     def _advance(self, step: Step, reason: str) -> None:
         self._state.step = step
