@@ -13,7 +13,7 @@ def test_parse_decision__amount_becomes_exact_decimal(amount: object, expected: 
     assert parse_decision({**BASE, "amount_eur": amount}).amount_eur == Decimal(expected)
 
 
-@pytest.mark.parametrize("amount", [True, [49], {"eur": 49}, "forty-nine"])
+@pytest.mark.parametrize("amount", [True, [49], {"eur": 49}, "forty-nine", "NaN", "sNaN", "Infinity", "-Infinity"])
 def test_parse_decision__unreadable_amount_is_rejected(amount: object) -> None:
     with pytest.raises(DecisionFormatError, match="amount_eur"):
         parse_decision({**BASE, "amount_eur": amount})

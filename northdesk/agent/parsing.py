@@ -66,6 +66,9 @@ def _amount(value: Any) -> Decimal | None:
     if isinstance(value, bool) or not isinstance(value, (str, int, float)):
         raise DecisionFormatError('amount_eur must be a decimal string such as "49.00"')
     try:
-        return Decimal(str(value).strip())
+        amount = Decimal(str(value).strip())
     except InvalidOperation:
         raise DecisionFormatError('amount_eur must be a decimal string such as "49.00"') from None
+    if not amount.is_finite():  # "NaN" and "Infinity" parse; ask the model again rather than store them
+        raise DecisionFormatError('amount_eur must be a finite decimal such as "49.00"')
+    return amount

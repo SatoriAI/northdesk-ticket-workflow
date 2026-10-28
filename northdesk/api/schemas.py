@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,7 +30,8 @@ class DecisionOut(BaseModel):
     reason: str | None
     kb_article_ids: list[str]
     invoice_id: str | None
-    amount_eur: Decimal | None
+    # The proposal is model output kept for the record; showing it must never fail, even for a "NaN".
+    amount_eur: Annotated[Decimal, Field(allow_inf_nan=True)] | None
 
 
 class ActionResultOut(BaseModel):
