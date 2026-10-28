@@ -2,8 +2,9 @@ import uuid
 
 from temporalio.testing import WorkflowEnvironment
 
+from northdesk.constants import workflow_id_for
 from northdesk.domain.models import Ticket
-from northdesk.workflows.starter import start_ticket_workflow, workflow_id_for
+from northdesk.workflows.starter import start_ticket_workflow
 
 # No worker polls this queue, so a started workflow stays running until the test ends it.
 IDLE_QUEUE = "test-starter-idle"

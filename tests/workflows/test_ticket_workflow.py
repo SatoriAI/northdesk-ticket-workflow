@@ -349,19 +349,3 @@ async def test_run__load_context_failure_ends_in_failed_step(env: WorkflowEnviro
     state = await handle.query(TicketWorkflow.state)
     assert (state.step, state.history[-1].reason) == (Step.FAILED, "loading_context failed (RuntimeError)")
     assert stubs.decided == [] and stubs.performed == []
-
-
-async def test_approval__resend_with_the_same_update_id_returns_the_first_answer(
-    env: WorkflowEnvironment, stubs: Stubs
-) -> None:
-    """What the API relies on to make resends safe: Temporal deduplicates an Update ID within a run."""
-    stubs.act_failures = 100  # keep the workflow running after the approval
-    handle = await awaiting_refund(env)
-    await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("approve"), id="approval", result_type=TicketState)
-
-    resent: TicketState = await handle.execute_update(
-        APPROVAL_UPDATE, ApprovalRequest("reject"), id="approval", result_type=TicketState
-    )
-
-    assert resent.approval == ApprovalRequest("approve")
-    await handle.terminate("test done")

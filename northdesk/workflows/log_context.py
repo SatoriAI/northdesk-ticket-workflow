@@ -5,7 +5,7 @@ import logging
 
 from temporalio import activity, workflow
 
-from northdesk.constants import WORKFLOW_ID_PREFIX
+from northdesk.constants import ticket_id_of
 
 
 class TemporalContextFilter(logging.Filter):
@@ -13,8 +13,9 @@ class TemporalContextFilter(logging.Filter):
         workflow_id = getattr(record, "workflow_id", None) or _workflow_id(record)
         if workflow_id:
             record.workflow_id = workflow_id
-            if not hasattr(record, "ticket_id") and workflow_id.startswith(WORKFLOW_ID_PREFIX):
-                record.ticket_id = workflow_id.removeprefix(WORKFLOW_ID_PREFIX)
+            ticket_id = ticket_id_of(workflow_id)
+            if ticket_id is not None and not hasattr(record, "ticket_id"):
+                record.ticket_id = ticket_id
         return True
 
 

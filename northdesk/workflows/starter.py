@@ -4,13 +4,9 @@ from temporalio.client import Client
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
-from northdesk.constants import WORKFLOW_ID_PREFIX
+from northdesk.constants import workflow_id_for
 from northdesk.domain.models import Ticket
 from northdesk.workflows.contract import WORKFLOW_NAME
-
-
-def workflow_id_for(ticket_id: str) -> str:
-    return f"{WORKFLOW_ID_PREFIX}{ticket_id}"
 
 
 async def start_ticket_workflow(client: Client, ticket: Ticket, *, task_queue: str) -> bool:

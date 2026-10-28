@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from importlib import resources
 from typing import Any
 
-from northdesk.constants import WORKFLOW_ID_PREFIX
+from northdesk.constants import workflow_id_for
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 # Set by the API once it knows which ticket a request is about; every line logged after that carries it.
@@ -33,7 +33,7 @@ class ContextLogFilter(logging.Filter):
         ticket_id = ticket_id_var.get()
         if ticket_id is not None and not hasattr(record, "ticket_id"):
             record.ticket_id = ticket_id
-            record.workflow_id = f"{WORKFLOW_ID_PREFIX}{ticket_id}"
+            record.workflow_id = workflow_id_for(ticket_id)
         return True
 
 

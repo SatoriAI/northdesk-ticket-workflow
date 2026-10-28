@@ -10,12 +10,12 @@ from temporalio.service import RPCError, RPCStatusCode
 from northdesk.api.deps import SettingsDep, TemporalClientDep
 from northdesk.api.problems import problem_responses
 from northdesk.api.schemas import TICKET_ID_PATTERN, ApprovalIn, TicketAccepted, TicketIn, TicketStateOut
-from northdesk.constants import TEMPORAL_CALL_TIMEOUT_SECONDS
+from northdesk.constants import TEMPORAL_CALL_TIMEOUT_SECONDS, workflow_id_for
 from northdesk.domain.models import ApprovalRequest, Ticket, TicketState
 from northdesk.errors import TicketNotAwaitingApprovalError, TicketNotFoundError
 from northdesk.log import bind_ticket
 from northdesk.workflows.contract import APPROVAL_UPDATE, NOT_AWAITING_APPROVAL, STATE_QUERY
-from northdesk.workflows.starter import start_ticket_workflow, workflow_id_for
+from northdesk.workflows.starter import start_ticket_workflow
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -67,21 +67,13 @@ async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: 
     """Approve or reject the refund the ticket is waiting on (the workflow's `approval` Update).
 
     The returned state is the moment the answer was accepted: `approval` is set and the step is still
-    `awaiting_approval`; the workflow moves on to acting right after (see GET). Resending the same answer is safe:
-    it returns the ticket's state again. 409 when the ticket is not waiting for approval (another step, or
-    finished) or was already answered differently.
+    `awaiting_approval`; the workflow moves on to acting right after (see GET). 409 when the ticket is not
+    waiting for approval: at another step, already answered, or finished.
     """
     handle = client.get_workflow_handle(workflow_id_for(ticket_id))
     request = ApprovalRequest(approval.decision, approval.comment)
     try:
-        state = await handle.execute_update(
-            APPROVAL_UPDATE,
-            request,
-            # One Update ID per ticket: Temporal answers a resend from the first approval instead of running it again.
-            id=APPROVAL_UPDATE,
-            result_type=TicketState,
-            rpc_timeout=CALL_TIMEOUT,
-        )
+        state = await handle.execute_update(APPROVAL_UPDATE, request, result_type=TicketState, rpc_timeout=CALL_TIMEOUT)
     except WorkflowUpdateFailedError as exc:
         cause = exc.cause
         if isinstance(cause, ApplicationError) and cause.type == NOT_AWAITING_APPROVAL:
@@ -91,15 +83,9 @@ async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: 
         if exc.status != RPCStatusCode.NOT_FOUND:
             raise
         # Temporal answers NOT_FOUND both for an unknown workflow and for one that has already finished.
-        if not await _exists(handle):
-            raise TicketNotFoundError(f"No ticket {ticket_id}") from exc
-        state = await handle.query(STATE_QUERY, result_type=TicketState, rpc_timeout=CALL_TIMEOUT)
-        if state.approval != request:
+        if await _exists(handle):
             raise TicketNotAwaitingApprovalError("ticket is already closed") from exc
-    if state.approval != request:  # Temporal returned the first approval for this ID, and it was different
-        raise TicketNotAwaitingApprovalError(
-            f"ticket was already answered: {state.approval.decision if state.approval else None}"
-        )
+        raise TicketNotFoundError(f"No ticket {ticket_id}") from exc
     return _state_out(ticket_id, handle.id, state)
 
 
