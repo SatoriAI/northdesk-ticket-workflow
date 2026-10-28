@@ -30,6 +30,7 @@ class Step(StrEnum):
     RECEIVED = "received"
     LOADING_CONTEXT = "loading_context"
     DECIDING = "deciding"
+    VALIDATING = "validating"
     ACTING = "acting"
     COMPLETED = "completed"
 
@@ -71,7 +72,8 @@ class TicketContext:
     """What load_context read from the data layer: the only facts validation may trust."""
 
     customer: Customer
-    invoices: list[Invoice]
+    invoices: list[Invoice]  # this customer's only: other customers' data never enters the workflow
+    kb_article_ids: list[str]
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,20 @@ class Decision:
     category: str
     priority: str
     action: str
+    message: str | None = None
+    reason: str | None = None
+    kb_article_ids: list[str] = field(default_factory=list)
+    invoice_id: str | None = None
+    amount_eur: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class Command:
+    """A validated action with typed fields. Only a Command is ever carried out, never a raw Decision."""
+
+    action: Action
+    category: Category
+    priority: Priority
     message: str | None = None
     reason: str | None = None
     kb_article_ids: list[str] = field(default_factory=list)
@@ -107,6 +123,7 @@ class TicketState:
     """Returned by the `state` query: where the ticket is and how it got there."""
 
     step: Step = Step.RECEIVED
-    decision: Decision | None = None
+    decision: Decision | None = None  # what the agent proposed
+    command: Command | None = None  # what validation allowed to be carried out
     result: ActionResult | None = None
     history: list[HistoryEntry] = field(default_factory=list)

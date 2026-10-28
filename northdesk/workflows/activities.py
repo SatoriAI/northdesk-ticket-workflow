@@ -36,7 +36,11 @@ class TicketActivities:
         customer = self._repository.customer(ticket.customer_id)
         if customer is None:
             raise ApplicationError("unknown customer", type=UNKNOWN_CUSTOMER, non_retryable=True)
-        return TicketContext(customer=customer, invoices=self._repository.invoices_of(ticket.customer_id))
+        return TicketContext(
+            customer=customer,
+            invoices=self._repository.invoices_of(ticket.customer_id),
+            kb_article_ids=[article.article_id for article in self._repository.kb],
+        )
 
     @activity.defn
     async def decide(self, request: DecideInput) -> Decision:

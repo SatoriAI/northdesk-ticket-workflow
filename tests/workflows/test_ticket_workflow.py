@@ -15,7 +15,9 @@ T1 = Ticket("T-1", "C-200", "Can't log in", "I forgot my password and can't get 
 
 @activity.defn(name="load_context")
 async def load_context(ticket: Ticket) -> TicketContext:
-    return TicketContext(customer=Customer(ticket.customer_id, "Contoso Labs", "free", "active"), invoices=[])
+    return TicketContext(
+        customer=Customer(ticket.customer_id, "Contoso Labs", "free", "active"), invoices=[], kb_article_ids=["KB-1"]
+    )
 
 
 @activity.defn(name="decide")

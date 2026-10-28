@@ -9,6 +9,7 @@ def test_round_trip__decimal_survives_exactly() -> None:
     context = TicketContext(
         customer=Customer("C-100", "Northwind Bakery", "business", "active"),
         invoices=[Invoice("INV-1002", "C-100", "2026-09", Decimal("49.0"), "paid")],
+        kb_article_ids=["KB-1"],
     )
 
     [payload] = converter.to_payloads([context])
