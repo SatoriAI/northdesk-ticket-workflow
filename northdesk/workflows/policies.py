@@ -25,3 +25,6 @@ ACT_RETRY = RetryPolicy(
     maximum_interval=timedelta(seconds=20),
     maximum_attempts=6,
 )
+
+# How long a refund waits for a person before it is escalated instead (the brief's 24 h).
+APPROVAL_TIMEOUT = timedelta(hours=24)

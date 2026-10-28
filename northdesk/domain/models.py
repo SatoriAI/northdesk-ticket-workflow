@@ -31,8 +31,15 @@ class Step(StrEnum):
     LOADING_CONTEXT = "loading_context"
     DECIDING = "deciding"
     VALIDATING = "validating"
+    AWAITING_APPROVAL = "awaiting_approval"
     ACTING = "acting"
     COMPLETED = "completed"
+    FAILED = "failed"  # the action could not be carried out; see the last history entry
+
+
+class ApprovalDecision(StrEnum):
+    APPROVE = "approve"
+    REJECT = "reject"
 
 
 @dataclass(frozen=True)
@@ -120,6 +127,14 @@ class HistoryEntry:
     reason: str
 
 
+@dataclass(frozen=True)
+class ApprovalRequest:
+    """A person's answer to a refund waiting for approval, sent as the workflow's `approval` Update."""
+
+    decision: str  # ApprovalDecision; checked by the Update's validator, so a bad value is refused, not stored
+    comment: str = ""
+
+
 @dataclass
 class TicketState:
     """Returned by the `state` query: where the ticket is and how it got there."""
@@ -127,5 +142,6 @@ class TicketState:
     step: Step = Step.RECEIVED
     decision: Decision | None = None  # what the agent proposed
     command: Command | None = None  # what validation allowed to be carried out
+    approval: ApprovalRequest | None = None  # for a refund: the person's answer, once given
     result: ActionResult | None = None
     history: list[HistoryEntry] = field(default_factory=list)
