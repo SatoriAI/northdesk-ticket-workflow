@@ -110,6 +110,7 @@ class ActionResult:
     action: str
     helpdesk_action_id: str
     idempotency_key: str
+    replayed: bool  # the helpdesk had already performed this key (a retry after a lost response)
 
 
 @dataclass(frozen=True)

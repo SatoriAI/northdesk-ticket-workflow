@@ -3,7 +3,7 @@
 from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
-    from northdesk.domain.models import HistoryEntry, Step, Ticket, TicketState
+    from northdesk.domain.models import Action, Command, HistoryEntry, Step, Ticket, TicketState
     from northdesk.domain.rules import validate
     from northdesk.workflows.activities import ActInput, DecideInput, TicketActivities
     from northdesk.workflows.policies import (
@@ -45,12 +45,21 @@ class TicketWorkflow:
         self._advance(Step.VALIDATING, f"agent proposed {decision.category}/{decision.priority}/{decision.action}")
         # Pure and deterministic, so it runs in the workflow itself, against the data load_context returned.
         validation = validate(decision, context)
-        command = self._state.command = validation.command
+        command = validation.command
+        if validation.violation:
+            acting_reason = f"escalating: {validation.violation}"
+        elif command.action == Action.REFUND:
+            # Refunds need human approval, which the next step of this workflow adds. Until it exists a refund
+            # is escalated, so no refund is ever carried out unapproved.
+            command = Command(
+                Action.ESCALATE, command.category, command.priority, reason="refund awaits human approval"
+            )
+            acting_reason = "escalating: refund approval is not implemented yet"
+        else:
+            acting_reason = f"validated {command.action}"
+        self._state.command = command
 
-        self._advance(
-            Step.ACTING,
-            f"escalating: {validation.violation}" if validation.violation else f"validated {command.action}",
-        )
+        self._advance(Step.ACTING, acting_reason)
         self._state.result = await workflow.execute_activity_method(
             TicketActivities.act,
             ActInput(ticket_id=ticket.ticket_id, command=command),

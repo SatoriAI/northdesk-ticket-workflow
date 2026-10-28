@@ -1,17 +1,17 @@
 """Activities: everything that touches the outside world or is non-deterministic runs here, not in the workflow."""
 
 from dataclasses import dataclass
-from typing import Any
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from northdesk.clients.helpdesk.client import HelpdeskClient
+from northdesk.clients.helpdesk.client import HelpdeskClient, HelpdeskRejectedError
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
 from northdesk.domain.models import ActionResult, Command, Decision, Ticket, TicketContext
 
 UNKNOWN_CUSTOMER = "UnknownCustomer"
+HELPDESK_REJECTED = "HelpdeskRejected"
 
 
 @dataclass(frozen=True)
@@ -52,26 +52,28 @@ class TicketActivities:
         # Same key on every retry of this action, so the helpdesk performs it at most once.
         command = request.command
         idempotency_key = f"{activity.info().workflow_id}:{command.action.value}"
-        receipt = await self._helpdesk.perform(
-            idempotency_key=idempotency_key,
-            ticket_id=request.ticket_id,
-            action=command.action.value,
-            details=_helpdesk_details(command),
+        try:
+            receipt = await self._helpdesk.perform(
+                idempotency_key=idempotency_key, ticket_id=request.ticket_id, command=command
+            )
+        except HelpdeskRejectedError as exc:
+            # A 4xx will not change on retry; HelpdeskUnavailableError propagates and is retried by ACT_RETRY.
+            raise ApplicationError(str(exc), type=HELPDESK_REJECTED, non_retryable=True) from exc
+        activity.logger.info(
+            "helpdesk %s %s for ticket %s",
+            "replayed" if receipt.replayed else "performed",
+            command.action.value,
+            request.ticket_id,
+            extra={
+                "ticket_id": request.ticket_id,
+                "workflow_id": activity.info().workflow_id,
+                "idempotency_key": idempotency_key,
+                "replayed": receipt.replayed,
+            },
         )
         return ActionResult(
-            action=command.action.value, helpdesk_action_id=receipt.action_id, idempotency_key=idempotency_key
+            action=command.action.value,
+            helpdesk_action_id=receipt.action_id,
+            idempotency_key=idempotency_key,
+            replayed=receipt.replayed,
         )
-
-
-def _helpdesk_details(command: Command) -> dict[str, Any]:
-    """Field by field, so the request body is plain JSON (the amount travels as an exact decimal string)."""
-    details: dict[str, Any] = {
-        "category": command.category.value,
-        "priority": command.priority.value,
-        "message": command.message,
-        "reason": command.reason,
-        "kb_article_ids": command.kb_article_ids or None,
-        "invoice_id": command.invoice_id,
-        "amount_eur": None if command.amount_eur is None else str(command.amount_eur),
-    }
-    return {key: value for key, value in details.items() if value is not None}
