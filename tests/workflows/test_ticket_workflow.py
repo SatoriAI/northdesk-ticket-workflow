@@ -96,6 +96,8 @@ async def test_run__valid_reply_is_carried_out(env: WorkflowEnvironment, recorde
 
     assert state.step == Step.COMPLETED
     assert [request.command.action for request in recorder.performed] == [Action.REPLY]
+    key = recorder.performed[0].idempotency_key
+    assert key.startswith("ticket-T-1-") and key.endswith(":reply")  # "{workflow_id}:{action}"
     assert [entry.step for entry in state.history] == [
         Step.LOADING_CONTEXT,
         Step.DECIDING,

@@ -27,6 +27,7 @@ class DecideInput:
 class ActInput:
     ticket_id: str
     command: Command
+    idempotency_key: str  # built by the workflow, so it is visible in the workflow history
 
 
 class TicketActivities:
@@ -60,7 +61,7 @@ class TicketActivities:
     async def act(self, request: ActInput) -> ActionResult:
         # Same key on every retry of this action, so the helpdesk performs it at most once.
         command = request.command
-        idempotency_key = f"{activity.info().workflow_id}:{command.action.value}"
+        idempotency_key = request.idempotency_key
         try:
             receipt = await self._helpdesk.perform(
                 idempotency_key=idempotency_key, ticket_id=request.ticket_id, command=command

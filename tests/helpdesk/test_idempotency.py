@@ -42,7 +42,7 @@ async def test_act__lost_response_then_retry_leaves_exactly_one_refund(
     ):
         result = await env.client.execute_workflow(
             ActWithRetries.run,
-            ActInput(ticket_id="T-2", command=REFUND),
+            ActInput(ticket_id="T-2", command=REFUND, idempotency_key="ticket-T-2:refund"),
             id=f"ticket-T-2-{uuid.uuid4().hex[:6]}",
             task_queue="test-idempotency",
         )

@@ -27,7 +27,9 @@ REFUND = Command(Action.REFUND, Category.BILLING, Priority.NORMAL, invoice_id="I
 async def act_with(handler: Callable[[httpx.Request], httpx.Response]) -> ActionResult:
     http = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://helpdesk")
     activities = TicketActivities(DataRepository.load(), FakeLlm(), HelpdeskClient(http))
-    return await ActivityEnvironment().run(activities.act, ActInput(ticket_id="T-2", command=REFUND))
+    return await ActivityEnvironment().run(
+        activities.act, ActInput(ticket_id="T-2", command=REFUND, idempotency_key="ticket-T-2:refund")
+    )
 
 
 async def test_act__rejected_request_is_not_retried() -> None:
@@ -43,7 +45,7 @@ async def test_act__unavailable_helpdesk_is_retried() -> None:
         await act_with(lambda _: httpx.Response(503))
 
 
-async def test_act__key_is_workflow_id_and_action() -> None:
+async def test_act__sends_the_key_it_was_given() -> None:
     keys: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -52,8 +54,7 @@ async def test_act__key_is_workflow_id_and_action() -> None:
 
     result = await act_with(handler)
 
-    # ActivityEnvironment's default workflow ID is "test"
-    assert keys == ["test:refund"]
+    assert keys == ["ticket-T-2:refund"]
     assert result.replayed is True
 
 

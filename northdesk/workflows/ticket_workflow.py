@@ -72,7 +72,12 @@ class TicketWorkflow:
         self._advance(Step.ACTING, acting_reason)
         self._state.result = await workflow.execute_activity_method(
             TicketActivities.act,
-            ActInput(ticket_id=ticket.ticket_id, command=command),
+            # One act per action type per workflow, so this key is unique, and stable across every retry.
+            ActInput(
+                ticket_id=ticket.ticket_id,
+                command=command,
+                idempotency_key=f"{workflow.info().workflow_id}:{command.action.value}",
+            ),
             start_to_close_timeout=ACT_TIMEOUT,
             retry_policy=ACT_RETRY,
         )
