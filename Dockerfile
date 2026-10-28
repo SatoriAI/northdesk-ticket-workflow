@@ -13,31 +13,32 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-# Dependencies first, so code changes don't invalidate this layer.
+# Dependencies only; each stage copies the code last, so editing it does not invalidate the slow layers.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev
-
-COPY northdesk ./northdesk
-COPY helpdesk ./helpdesk
 
 
 FROM base AS test
 
 RUN uv sync --locked
 # The workflow tests use Temporal's time-skipping test server, which the SDK downloads on first use. Fetch it now,
-# into the image, so `docker run --network none` can run every test.
+# into a fixed directory the tests also read, so `docker run --network none` can run every test.
+ENV TEMPORAL_TEST_SERVER_DIR=/opt/temporal
+RUN mkdir -p "$TEMPORAL_TEST_SERVER_DIR"
 RUN <<EOF
 python -c '
-import asyncio
+import asyncio, os
 from temporalio.testing import WorkflowEnvironment
 
 async def fetch() -> None:
-    async with await WorkflowEnvironment.start_time_skipping():
+    async with await WorkflowEnvironment.start_time_skipping(download_dest_dir=os.environ["TEMPORAL_TEST_SERVER_DIR"]):
         pass
 
 asyncio.run(fetch())
 '
 EOF
+COPY northdesk ./northdesk
+COPY helpdesk ./helpdesk
 COPY .env.example ./
 COPY tests ./tests
 CMD ["pytest"]
@@ -45,6 +46,8 @@ CMD ["pytest"]
 
 FROM base AS app
 
+COPY northdesk ./northdesk
+COPY helpdesk ./helpdesk
 RUN useradd --create-home --uid 10001 app && mkdir /data && chown app /data
 USER app
 

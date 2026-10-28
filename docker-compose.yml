@@ -1,5 +1,7 @@
 x-app: &app
-  build: .
+  build:
+    context: .
+    target: app
   image: northdesk:local
   restart: unless-stopped
 

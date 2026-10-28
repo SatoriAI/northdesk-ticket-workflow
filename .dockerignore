@@ -3,7 +3,7 @@
 .env
 **/__pycache__
 .mypy_cache
-.ruff_cache
+**/.ruff_cache
 .pytest_cache
 *.sqlite3
 AGENT_BRIEF.md

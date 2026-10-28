@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
@@ -112,5 +113,9 @@ async def env() -> AsyncIterator[WorkflowEnvironment]:
     """Temporal's time-skipping test server, one per test (about 0.1 s each); the binary is downloaded once, then
     cached (see README for offline runs). Not shared: a test that ends with work still outstanding (an activity
     mid-run, a workflow no worker polls) stops a shared server from skipping time for every later test."""
-    async with await WorkflowEnvironment.start_time_skipping(data_converter=DATA_CONVERTER) as env:
+    # TEMPORAL_TEST_SERVER_DIR points at a pre-downloaded binary (the Docker test image sets it), so the tests
+    # never depend on whatever happens to be cached in the system temp directory.
+    async with await WorkflowEnvironment.start_time_skipping(
+        data_converter=DATA_CONVERTER, download_dest_dir=os.environ.get("TEMPORAL_TEST_SERVER_DIR")
+    ) as env:
         yield env
