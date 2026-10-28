@@ -5,7 +5,8 @@ x-app: &app
 
 services:
   temporal:
-    # Dev server: in-memory persistence, so `docker compose down` starts the next run from a clean state.
+    # Dev server with in-memory persistence. The helpdesk database also lives only in its container, so
+    # `docker compose down` resets both together: idempotency keys never outlive the workflows that made them.
     image: temporalio/temporal:1.9.1
     command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-ip", "0.0.0.0", "--ui-port", "8233"]
     ports:
@@ -26,8 +27,6 @@ services:
       HELPDESK_DB_PATH: /data/helpdesk.sqlite3
     ports:
       - "8001:8001"
-    volumes:
-      - helpdesk-data:/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
       interval: 2s
@@ -59,6 +58,3 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
-
-volumes:
-  helpdesk-data:
