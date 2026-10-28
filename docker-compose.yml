@@ -48,9 +48,10 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       HELPDESK_URL: http://helpdesk:8001
       LLM_MODE: ${LLM_MODE:-fake}
-      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
-      LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
-      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      # Empty means "use the default in northdesk/settings.py", the one place defaults live.
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on:
       temporal:

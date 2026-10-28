@@ -12,7 +12,7 @@ EXEMPT = {
     # the HTTP edge, holding the Temporal client; it may use the workflow contract and starter (it bans the rest)
     "northdesk/api": {"fastapi", "starlette", "temporalio", "northdesk.api", "northdesk.workflows"},
     "northdesk/workflows": {"temporalio", "northdesk.workflows"},  # the Temporal layer
-    "northdesk/clients/llm": {"anthropic"},  # the provider SDK's one home
+    "northdesk/clients/llm": {"anthropic", "northdesk.clients.llm.anthropic_client"},  # the providers' one home
 }
 
 

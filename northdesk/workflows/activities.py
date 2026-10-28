@@ -8,8 +8,7 @@ from temporalio.exceptions import ApplicationError
 from northdesk.agent.loop import UnparseableDecisionError, run_agent
 from northdesk.agent.tools import ToolBox
 from northdesk.clients.helpdesk.client import HelpdeskClient, HelpdeskRejectedError
-from northdesk.clients.llm.anthropic_client import LlmRejectedError
-from northdesk.clients.llm.base import LlmClient
+from northdesk.clients.llm.base import LlmClient, LlmRejectedError
 from northdesk.data.repository import DataRepository
 from northdesk.domain.models import ActionResult, Command, Decision, Ticket, TicketContext
 
@@ -54,9 +53,7 @@ class TicketActivities:
         # The tools see only what load_context loaded for this ticket's customer.
         tools = ToolBox(context=request.context, kb=self._repository.kb)
         try:
-            # A heartbeat per model turn: a hung call is noticed within DECIDE_HEARTBEAT_TIMEOUT, not at the end of
-            # the whole loop's budget.
-            return await run_agent(self._llm, request.ticket, tools, on_turn=activity.heartbeat)
+            return await run_agent(self._llm, request.ticket, tools)
         except UnparseableDecisionError as exc:
             # Asking again would replay the same conversation; the workflow escalates instead.
             raise ApplicationError(str(exc), type=UNPARSEABLE_DECISION, non_retryable=True) from exc

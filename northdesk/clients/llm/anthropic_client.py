@@ -10,7 +10,7 @@ from typing import cast
 import anthropic
 from anthropic.types.beta import BetaMessageParam, BetaOutputConfigParam, BetaToolParam
 
-from northdesk.clients.llm.base import LlmTurn, Message, ToolCall, ToolSpec
+from northdesk.clients.llm.base import LlmRejectedError, LlmTurn, LlmUnavailableError, Message, ToolCall, ToolSpec
 
 # Opt in to server-side fallback: if a safety classifier declines, the API re-runs the request on a fallback model
 # within the same call, instead of the ticket failing on a false positive.
@@ -18,14 +18,6 @@ _FALLBACK_BETA = "server-side-fallback-2026-07-01"
 _MAX_TOKENS = 16_000
 # Triage is a short task; set explicitly because the default differs between model generations.
 _OUTPUT_CONFIG: BetaOutputConfigParam = {"effort": "medium"}
-
-
-class LlmUnavailableError(Exception):
-    """Temporary: the same request may succeed on a retry."""
-
-
-class LlmRejectedError(Exception):
-    """Permanent: retrying the same request cannot succeed (bad credentials, bad request, refusal)."""
 
 
 class AnthropicLlm:

@@ -25,9 +25,8 @@ class LlmSettings(ServiceSettings):
     mode: Literal["fake", "real"] = "fake"
     provider: Literal["anthropic"] = "anthropic"
     model: str = "claude-opus-5-5"
-    # Per model call. The decide activity heartbeats after each call and times out without one after 45 s
-    # (DECIDE_HEARTBEAT_TIMEOUT), so a single call must fit well inside that.
-    timeout_seconds: float = Field(default=30.0, gt=0, le=40)
+    # Per model call; the whole agent loop (up to six calls) must fit in DECIDE_TIMEOUT (4 min).
+    timeout_seconds: float = Field(default=30.0, gt=0)
     # Optional so the fake mode needs no key; the real mode requires it (checked below).
     api_key: SecretStr | None = None
 

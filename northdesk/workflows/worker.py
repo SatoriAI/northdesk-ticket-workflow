@@ -7,12 +7,10 @@ import httpx
 from temporalio.worker import Worker
 
 from northdesk.clients.helpdesk.client import HelpdeskClient
-from northdesk.clients.llm.anthropic_client import AnthropicLlm
-from northdesk.clients.llm.base import LlmClient
-from northdesk.clients.llm.fake import FakeLlm
+from northdesk.clients.llm.factory import build_llm
 from northdesk.data.repository import DataRepository
 from northdesk.log import configure_logging
-from northdesk.settings import LlmSettings, WorkerSettings
+from northdesk.settings import WorkerSettings
 from northdesk.workflows import log_context
 from northdesk.workflows.activities import TicketActivities
 from northdesk.workflows.client import connect
@@ -37,15 +35,6 @@ async def run(settings: WorkerSettings) -> None:
         )
         logger.info("worker started on task queue %s (llm mode %s)", settings.temporal.task_queue, settings.llm.mode)
         await worker.run()
-
-
-def build_llm(settings: LlmSettings) -> LlmClient:
-    if settings.mode == "fake":
-        return FakeLlm()
-    assert settings.api_key is not None  # LlmSettings refuses real mode without a key  # noqa: S101
-    return AnthropicLlm(
-        api_key=settings.api_key.get_secret_value(), model=settings.model, timeout_seconds=settings.timeout_seconds
-    )
 
 
 def main() -> None:

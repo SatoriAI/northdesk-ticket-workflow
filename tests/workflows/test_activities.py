@@ -8,8 +8,7 @@ from temporalio.testing import ActivityEnvironment
 
 from northdesk.agent.loop import MAX_TURNS
 from northdesk.clients.helpdesk.client import HelpdeskClient, HelpdeskUnavailableError
-from northdesk.clients.llm.anthropic_client import LlmRejectedError
-from northdesk.clients.llm.base import LlmClient, LlmTurn
+from northdesk.clients.llm.base import LlmClient, LlmRejectedError, LlmTurn
 from northdesk.clients.llm.fake import FakeLlm
 from northdesk.data.repository import DataRepository
 from northdesk.domain.models import Action, ActionResult, Category, Command, Decision, Priority

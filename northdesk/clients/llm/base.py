@@ -4,7 +4,6 @@ Messages use the common tool-calling shape (role + content blocks: text, tool_us
 loop code drives both clients.
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -30,7 +29,12 @@ class LlmTurn:
     raw_content: list[Any] | None = None
 
 
-OnTurn = Callable[[], None]
+class LlmUnavailableError(Exception):
+    """Temporary: the same request may succeed on a retry. Any LlmClient raises this, whatever the provider."""
+
+
+class LlmRejectedError(Exception):
+    """Permanent: retrying the same request cannot succeed (bad credentials, bad request, refusal)."""
 
 
 class LlmClient(Protocol):

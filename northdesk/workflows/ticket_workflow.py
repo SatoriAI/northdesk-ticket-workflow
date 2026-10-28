@@ -42,7 +42,6 @@ with workflow.unsafe.imports_passed_through():
         ACT_RETRY,
         ACT_TIMEOUT,
         APPROVAL_TIMEOUT,
-        DECIDE_HEARTBEAT_TIMEOUT,
         DECIDE_RETRY,
         DECIDE_TIMEOUT,
         LOAD_CONTEXT_RETRY,
@@ -123,7 +122,6 @@ class TicketWorkflow:
                 TicketActivities.decide,
                 DecideInput(ticket=ticket, context=context),
                 start_to_close_timeout=DECIDE_TIMEOUT,
-                heartbeat_timeout=DECIDE_HEARTBEAT_TIMEOUT,
                 retry_policy=DECIDE_RETRY,
             )
         except ActivityError as exc:
