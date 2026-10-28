@@ -1,24 +1,12 @@
 import uuid
-from collections.abc import AsyncIterator
 
-import pytest
 from temporalio.testing import WorkflowEnvironment
 
 from northdesk.domain.models import Ticket
-from northdesk.workflows.converter import DATA_CONVERTER
 from northdesk.workflows.starter import start_ticket_workflow, workflow_id_for
 
 # No worker polls this queue, so a started workflow stays running until the test ends it.
 IDLE_QUEUE = "test-starter-idle"
-
-
-@pytest.fixture(scope="module")
-async def env() -> AsyncIterator[WorkflowEnvironment]:
-    """A test server of its own: these workflows are never picked up by a worker, and the time-skipping server
-    does not skip time while such work is outstanding (even after terminating them), which stalled the
-    shared server's 24 h approval test."""
-    async with await WorkflowEnvironment.start_time_skipping(data_converter=DATA_CONVERTER) as env:
-        yield env
 
 
 def new_ticket() -> Ticket:

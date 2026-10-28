@@ -82,8 +82,10 @@ async def client(app: tuple[FastAPI, ASGIApp], temporal_client: FakeTemporalClie
         fastapi_app.dependency_overrides.clear()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def env() -> AsyncIterator[WorkflowEnvironment]:
-    """Temporal's time-skipping test server; downloaded once, then cached (see README for offline runs)."""
+    """Temporal's time-skipping test server, one per test (about 0.1 s each); the binary is downloaded once, then
+    cached (see README for offline runs). Not shared: a test that ends with work still outstanding (an activity
+    mid-run, a workflow no worker polls) stops a shared server from skipping time for every later test."""
     async with await WorkflowEnvironment.start_time_skipping(data_converter=DATA_CONVERTER) as env:
         yield env
