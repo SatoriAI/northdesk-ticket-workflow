@@ -7,3 +7,7 @@ extend = "../../pyproject.toml"
 "northdesk.agent".msg = "The API starts and queries workflows; the agent runs in the worker."
 "northdesk.clients".msg = "The API calls no outbound services; activities in the worker do."
 "northdesk.data".msg = "The API reads ticket state from Temporal, not from the data layer."
+# TID251 checks direct imports only: these modules import the agent, the clients and the data layer.
+"northdesk.workflows.ticket_workflow".msg = "Call the workflow by name (workflows/contract.py); this imports worker code."
+"northdesk.workflows.activities".msg = "Activities run in the worker; the API must not load them."
+"northdesk.workflows.worker".msg = "The worker entrypoint is not for the API."
