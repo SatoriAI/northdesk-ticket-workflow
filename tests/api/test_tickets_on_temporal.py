@@ -97,3 +97,4 @@ async def test_no_worker__get_and_approval_are_problem_503(api_without_worker: h
     assert (got.status_code, got.json()["code"]) == (503, "dependency_unavailable")
     assert (approved.status_code, approved.json()["code"]) == (503, "dependency_unavailable")
     assert "check GET before resending" in approved.json()["detail"]
+    assert "approval" not in got.json()["detail"]  # the resend advice is only for the approval route

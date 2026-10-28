@@ -10,7 +10,7 @@ from temporalio.client import RPCTimeoutOrCancelledError
 from temporalio.service import RPCError, RPCStatusCode
 
 from northdesk.api.problems import problem_response
-from northdesk.errors import AppError
+from northdesk.errors import AppError, DependencyUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,6 @@ async def _handle_app_error(request: Request, exc: Exception) -> Response:
         title=exc.title,
         detail=exc.detail,
         instance=request.url.path,
-        extensions=exc.extensions,
     )
 
 
@@ -63,27 +62,24 @@ async def _handle_http_exception(request: Request, exc: Exception) -> Response:
 
 # RPC statuses that mean nobody answered in time: no worker polling, or Temporal itself unreachable.
 _NO_ANSWER = frozenset({RPCStatusCode.CANCELLED, RPCStatusCode.DEADLINE_EXCEEDED, RPCStatusCode.UNAVAILABLE})
-_NOT_ANSWERED = (
-    "Temporal or a worker did not answer in time; is the worker running? An approval may still be applied "
-    "once a worker polls, so check GET before resending it."
-)
+
+
+def is_temporal_unavailable(exc: BaseException) -> bool:
+    """True when Temporal or a worker did not answer: a timed-out or cancelled call, or a lazy client that could not
+    connect (which the SDK reports as a plain RuntimeError). Any other error is unexpected and stays a 500."""
+    if isinstance(exc, RPCTimeoutOrCancelledError):
+        return True
+    if isinstance(exc, RPCError):
+        return exc.status in _NO_ANSWER
+    return isinstance(exc, RuntimeError) and str(exc).startswith("Failed client connect")
 
 
 async def _handle_temporal_unavailable(request: Request, exc: Exception) -> Response:
     """One place for "Temporal did not answer": every route that talks to Temporal gets the same 503."""
-    if isinstance(exc, RPCError) and exc.status not in _NO_ANSWER:
-        raise exc  # an unexpected RPC failure: UnhandledErrorMiddleware logs it and answers 500
-    # The lazy client raises a plain RuntimeError when its first call cannot connect; nothing else is caught.
-    if isinstance(exc, RuntimeError) and not str(exc).startswith("Failed client connect"):
-        raise exc
-    logger.warning("temporal unavailable on %s: %s", request.url.path, type(exc).__name__)
-    return problem_response(
-        status=HTTPStatus.SERVICE_UNAVAILABLE,
-        code="dependency_unavailable",
-        title="A dependency is unavailable",
-        detail=_NOT_ANSWERED,
-        instance=request.url.path,
-    )
+    if not is_temporal_unavailable(exc):
+        raise exc  # UnhandledErrorMiddleware logs it and answers 500
+    unavailable = DependencyUnavailableError("Temporal or a worker did not answer in time; is the worker running?")
+    return await _handle_app_error(request, unavailable)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -121,9 +117,6 @@ class UnhandledErrorMiddleware:
             if response_started:
                 raise
             response = problem_response(
-                status=HTTPStatus.INTERNAL_SERVER_ERROR,
-                code="internal_error",
-                title="Internal server error",
-                instance=scope.get("path"),
+                status=AppError.status, code=AppError.code, title=AppError.title, instance=scope.get("path")
             )
             await response(scope, receive, send)

@@ -1,9 +1,10 @@
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from northdesk.domain.approval import MAX_APPROVAL_COMMENT_LENGTH
+from northdesk.domain.models import ApprovalDecision
 
 TICKET_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 
@@ -20,7 +21,7 @@ class TicketIn(BaseModel):
 class ApprovalIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    decision: Literal["approve", "reject"]
+    decision: ApprovalDecision
     comment: str = Field(default="", max_length=MAX_APPROVAL_COMMENT_LENGTH)
 
 

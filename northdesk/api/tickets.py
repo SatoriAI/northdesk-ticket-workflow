@@ -3,16 +3,16 @@ from datetime import timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Response, status
-from temporalio.client import WorkflowHandle, WorkflowUpdateFailedError
+from temporalio.client import RPCTimeoutOrCancelledError, WorkflowHandle, WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError, RPCStatusCode
 
 from northdesk.api.deps import SettingsDep, TemporalClientDep
 from northdesk.api.problems import problem_responses
 from northdesk.api.schemas import TICKET_ID_PATTERN, ApprovalIn, TicketAccepted, TicketIn, TicketStateOut
-from northdesk.constants import TEMPORAL_CALL_TIMEOUT_SECONDS, workflow_id_for
+from northdesk.constants import workflow_id_for
 from northdesk.domain.models import ApprovalRequest, Ticket, TicketState
-from northdesk.errors import TicketNotAwaitingApprovalError, TicketNotFoundError
+from northdesk.errors import DependencyUnavailableError, TicketNotAwaitingApprovalError, TicketNotFoundError
 from northdesk.log import bind_ticket
 from northdesk.workflows.contract import APPROVAL_UPDATE, NOT_AWAITING_APPROVAL, STATE_QUERY
 from northdesk.workflows.starter import start_ticket_workflow
@@ -27,13 +27,14 @@ async def _bound_ticket_id(ticket_id: Annotated[str, Path(pattern=TICKET_ID_PATT
 
 
 TicketIdPath = Annotated[str, Depends(_bound_ticket_id)]
-CALL_TIMEOUT = timedelta(seconds=TEMPORAL_CALL_TIMEOUT_SECONDS)
+# A query or Update needs a running worker; without one the call would hang, so give up (503) after this.
+CALL_TIMEOUT = timedelta(seconds=10)
 
 
 @router.post(
     "",
     status_code=status.HTTP_202_ACCEPTED,
-    responses={200: {"model": TicketAccepted, "description": "Ticket already exists"}, **problem_responses(422)},
+    responses={200: {"model": TicketAccepted, "description": "Ticket already exists"}, **problem_responses(422, 503)},
 )
 async def create_ticket(
     ticket: TicketIn, client: TemporalClientDep, settings: SettingsDep, response: Response
@@ -74,6 +75,12 @@ async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: 
     request = ApprovalRequest(approval.decision, approval.comment)
     try:
         state = await handle.execute_update(APPROVAL_UPDATE, request, result_type=TicketState, rpc_timeout=CALL_TIMEOUT)
+    except RPCTimeoutOrCancelledError as exc:
+        # Unlike the other routes, the request may still take effect: the Update waits for a worker to pick it up.
+        raise DependencyUnavailableError(
+            "no worker answered in time; the approval may still be applied when one polls, so check GET before "
+            "resending it"
+        ) from exc
     except WorkflowUpdateFailedError as exc:
         cause = exc.cause
         if isinstance(cause, ApplicationError) and cause.type == NOT_AWAITING_APPROVAL:

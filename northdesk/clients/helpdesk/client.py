@@ -6,11 +6,11 @@ timeouts, connection errors, 408, 409 and 429 are temporary; any other 4xx means
 """
 
 from dataclasses import dataclass
-from http import HTTPStatus
 from typing import Any
 
 import httpx
 
+from northdesk.clients.http_status import is_temporary
 from northdesk.domain.models import Command
 
 
@@ -28,11 +28,6 @@ class HelpdeskReceipt:
     replayed: bool  # True when the helpdesk had already performed this idempotency key
 
 
-# 4xx statuses that say "not now" rather than "never": the same request may succeed later. 409 is how an
-# idempotency-key server says "a request with this key is still in flight" (IETF Idempotency-Key draft).
-_TEMPORARY_CLIENT_ERRORS = frozenset({HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.CONFLICT, HTTPStatus.TOO_MANY_REQUESTS})
-
-
 class HelpdeskClient:
     def __init__(self, http: httpx.AsyncClient) -> None:
         self._http = http
@@ -46,7 +41,7 @@ class HelpdeskClient:
             )
         except httpx.TransportError as exc:
             raise HelpdeskUnavailableError(f"helpdesk unreachable: {exc!r}") from exc
-        if response.is_server_error or response.status_code in _TEMPORARY_CLIENT_ERRORS:
+        if is_temporary(response.status_code):
             raise HelpdeskUnavailableError(f"helpdesk returned {response.status_code}")
         if response.is_client_error:
             raise HelpdeskRejectedError(f"helpdesk rejected the request with {response.status_code}")

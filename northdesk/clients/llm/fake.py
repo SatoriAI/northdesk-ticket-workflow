@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from northdesk.agent.tools import ToolName
 from northdesk.clients.llm.base import LlmTurn, Message, ToolCall, ToolSpec
 
 _AMOUNT_IN_TEXT = re.compile(r"(\d+(?:\.\d{1,2})?)\s*(?:eur|€)")
@@ -48,15 +49,16 @@ class _Conversation:
 class FakeLlm:
     async def complete(self, *, system: str, messages: list[Message], tools: list[ToolSpec]) -> LlmTurn:
         conversation = _Conversation.read(messages)
-        if "get_customer" not in conversation.results or "get_invoices" not in conversation.results:
-            return _calls(messages, ("get_customer", {}), ("get_invoices", {}))
-        plan = _triage(conversation.text, conversation.results["get_customer"], conversation.results["get_invoices"])
-        if plan.kb_query and "search_kb" not in conversation.results:
-            return _calls(messages, ("search_kb", {"query": plan.kb_query}))
+        results = conversation.results
+        if ToolName.GET_CUSTOMER not in results or ToolName.GET_INVOICES not in results:
+            return _calls(messages, (ToolName.GET_CUSTOMER, {}), (ToolName.GET_INVOICES, {}))
+        plan = _triage(conversation.text, results[ToolName.GET_CUSTOMER], results[ToolName.GET_INVOICES])
+        if plan.kb_query and ToolName.SEARCH_KB not in results:
+            return _calls(messages, (ToolName.SEARCH_KB, {"query": plan.kb_query}))
         decision = dict(plan.decision)
         if plan.kb_query:
-            decision["kb_article_ids"] = [article["article_id"] for article in conversation.results["search_kb"][:1]]
-        return _calls(messages, ("submit_decision", decision))
+            decision["kb_article_ids"] = [article["article_id"] for article in results[ToolName.SEARCH_KB][:1]]
+        return _calls(messages, (ToolName.SUBMIT_DECISION, decision))
 
 
 def _triage(text: str, customer: dict[str, str], invoices: list[dict[str, str]]) -> _Plan:

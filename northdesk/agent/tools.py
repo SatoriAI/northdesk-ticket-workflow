@@ -4,34 +4,41 @@ model passes is ignored, so ticket text cannot steer a tool to another customer'
 import json
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 from northdesk.clients.llm.base import ToolCall, ToolSpec
 from northdesk.domain.models import Action, Category, KbArticle, Priority, TicketContext
 
-GET_CUSTOMER = "get_customer"
-GET_INVOICES = "get_invoices"
-SEARCH_KB = "search_kb"
-SUBMIT_DECISION = "submit_decision"
 
-# Caps keep model text, which ends up in workflow history and the helpdesk, far below Temporal's payload limits.
+class ToolName(StrEnum):
+    GET_CUSTOMER = "get_customer"
+    GET_INVOICES = "get_invoices"
+    SEARCH_KB = "search_kb"
+    SUBMIT_DECISION = "submit_decision"
+
+
+# Limits on what the model may submit. The schema below tells the model, and agent/parsing.py enforces the same
+# numbers. They keep model text, which ends up in workflow history and the helpdesk, far below Temporal's limits.
 MAX_MESSAGE_LENGTH = 2000
 MAX_REASON_LENGTH = 500
+MAX_ID_LENGTH = 64
+MAX_KB_ARTICLE_IDS = 10
 MAX_KB_RESULTS = 3
 
 TOOL_SPECS: list[ToolSpec] = [
     {
-        "name": GET_CUSTOMER,
+        "name": ToolName.GET_CUSTOMER,
         "description": "The ticket's customer: name, plan and account status.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
-        "name": GET_INVOICES,
+        "name": ToolName.GET_INVOICES,
         "description": "The ticket's customer's invoices: id, month, amount in EUR and status.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
-        "name": SEARCH_KB,
+        "name": ToolName.SEARCH_KB,
         "description": "Keyword search over the knowledge base. Returns matching articles with their ids.",
         "input_schema": {
             "type": "object",
@@ -40,7 +47,7 @@ TOOL_SPECS: list[ToolSpec] = [
         },
     },
     {
-        "name": SUBMIT_DECISION,
+        "name": ToolName.SUBMIT_DECISION,
         "description": "Submit the final decision for this ticket. Call it exactly once, last.",
         "input_schema": {
             "type": "object",
@@ -60,11 +67,15 @@ TOOL_SPECS: list[ToolSpec] = [
                 },
                 "kb_article_ids": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "maxItems": 10,
+                    "items": {"type": "string", "maxLength": MAX_ID_LENGTH},
+                    "maxItems": MAX_KB_ARTICLE_IDS,
                     "description": "For reply: ids of the KB articles the message relies on.",
                 },
-                "invoice_id": {"type": "string", "description": "For refund: the invoice to refund."},
+                "invoice_id": {
+                    "type": "string",
+                    "maxLength": MAX_ID_LENGTH,
+                    "description": "For refund: the invoice to refund.",
+                },
                 "amount_eur": {
                     "type": "string",
                     "pattern": r"^\d+(\.\d{1,2})?$",
@@ -86,17 +97,17 @@ class ToolBox:
     def run(self, call: ToolCall) -> tuple[str, bool]:
         """Run a read-only tool. Returns (JSON content, is_error) for the tool_result block."""
         match call.name:
-            case "get_customer":
+            case ToolName.GET_CUSTOMER:
                 result: Any = self.get_customer()
-            case "get_invoices":
+            case ToolName.GET_INVOICES:
                 result = self.get_invoices()
-            case "search_kb":
+            case ToolName.SEARCH_KB:
                 query = call.arguments.get("query")
                 if not isinstance(query, str):
                     return json.dumps({"error": "search_kb needs a string query"}), True
                 result = self.search_kb(query)
             case _:
-                return json.dumps({"error": f"unknown tool {call.name[:64]!r}"}), True
+                return json.dumps({"error": f"unknown tool {call.name[:MAX_ID_LENGTH]!r}"}), True
         return json.dumps(result), False
 
     def get_customer(self) -> dict[str, str]:

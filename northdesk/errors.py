@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, ClassVar
+from typing import ClassVar
 
 
 class AppError(Exception):
@@ -7,9 +7,9 @@ class AppError(Exception):
     code: ClassVar[str] = "internal_error"
     title: ClassVar[str] = "Internal server error"
 
-    def __init__(self, detail: str | None = None, **extensions: Any) -> None:
+    def __init__(self, detail: str | None = None) -> None:
         super().__init__(detail or self.title)
-        self.detail, self.extensions = detail, extensions
+        self.detail = detail
 
 
 class TicketNotFoundError(AppError):

@@ -10,6 +10,7 @@ from typing import cast
 import anthropic
 from anthropic.types.beta import BetaMessageParam, BetaOutputConfigParam, BetaToolParam
 
+from northdesk.clients.http_status import is_temporary
 from northdesk.clients.llm.base import LlmRejectedError, LlmTurn, LlmUnavailableError, Message, ToolCall, ToolSpec
 
 # Opt in to server-side fallback: if a safety classifier declines, the API re-runs the request on a fallback model
@@ -47,10 +48,10 @@ class AnthropicLlm:
                 betas=[_FALLBACK_BETA],
                 fallbacks="default",
             )
-        except (anthropic.APIConnectionError, anthropic.RateLimitError, anthropic.InternalServerError) as exc:
+        except anthropic.APIConnectionError as exc:  # timeouts included
             raise LlmUnavailableError(f"LLM unavailable: {type(exc).__name__}") from exc
         except anthropic.APIStatusError as exc:
-            if exc.status_code in {408, 409, 429} or exc.status_code >= 500:
+            if is_temporary(exc.status_code):
                 raise LlmUnavailableError(f"LLM unavailable: HTTP {exc.status_code}") from exc
             raise LlmRejectedError(f"LLM rejected the request: HTTP {exc.status_code}") from exc
 

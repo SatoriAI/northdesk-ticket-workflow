@@ -7,10 +7,17 @@ error would not escalate the ticket but fail the workflow task again and again.
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from northdesk.agent.tools import MAX_MESSAGE_LENGTH, MAX_REASON_LENGTH, SUBMIT_DECISION, TOOL_SPECS
+from northdesk.agent.tools import (
+    MAX_ID_LENGTH,
+    MAX_KB_ARTICLE_IDS,
+    MAX_MESSAGE_LENGTH,
+    MAX_REASON_LENGTH,
+    TOOL_SPECS,
+    ToolName,
+)
 from northdesk.domain.models import Decision
 
-_SUBMIT_SCHEMA = next(spec for spec in TOOL_SPECS if spec["name"] == SUBMIT_DECISION)["input_schema"]
+_SUBMIT_SCHEMA = next(spec for spec in TOOL_SPECS if spec["name"] == ToolName.SUBMIT_DECISION)["input_schema"]
 _FIELDS = frozenset(_SUBMIT_SCHEMA["properties"])
 
 
@@ -29,7 +36,7 @@ def parse_decision(arguments: dict[str, Any]) -> Decision:
         message=_optional_text(arguments, "message", MAX_MESSAGE_LENGTH),
         reason=_optional_text(arguments, "reason", MAX_REASON_LENGTH),
         kb_article_ids=_text_list(arguments, "kb_article_ids"),
-        invoice_id=_optional_text(arguments, "invoice_id", 64),
+        invoice_id=_optional_text(arguments, "invoice_id", MAX_ID_LENGTH),
         amount_eur=_amount(arguments.get("amount_eur")),
     )
 
@@ -38,7 +45,7 @@ def _required_text(arguments: dict[str, Any], name: str) -> str:
     value = arguments.get(name)
     if not isinstance(value, str):
         raise DecisionFormatError(f"{name} must be a string")
-    return value[:64]  # an unknown value is rejected by validation; it only has to be short
+    return value[:MAX_ID_LENGTH]  # an unknown value is rejected by validation; it only has to be short
 
 
 def _optional_text(arguments: dict[str, Any], name: str, max_length: int) -> str | None:
@@ -54,8 +61,12 @@ def _optional_text(arguments: dict[str, Any], name: str, max_length: int) -> str
 
 def _text_list(arguments: dict[str, Any], name: str) -> list[str]:
     value = arguments.get(name, [])
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value) or len(value) > 10:
-        raise DecisionFormatError(f"{name} must be a list of at most 10 strings")
+    if (
+        not isinstance(value, list)
+        or len(value) > MAX_KB_ARTICLE_IDS
+        or not all(isinstance(item, str) and len(item) <= MAX_ID_LENGTH for item in value)
+    ):
+        raise DecisionFormatError(f"{name} must be a list of at most {MAX_KB_ARTICLE_IDS} short strings")
     return value
 
 

@@ -5,10 +5,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 from starlette.responses import JSONResponse
 
-from northdesk.constants import ERROR_TYPE_BASE
 from northdesk.log import request_id_var
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
+# Base URI for RFC 9457 problem `type` values; the error `code` is appended.
+ERROR_TYPE_BASE = "https://errors.northdesk.example/"
 
 
 class ProblemDetails(BaseModel):

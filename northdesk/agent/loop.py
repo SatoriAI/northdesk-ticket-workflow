@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from northdesk.agent.parsing import DecisionFormatError, parse_decision
-from northdesk.agent.tools import SUBMIT_DECISION, TOOL_SPECS, ToolBox
+from northdesk.agent.tools import TOOL_SPECS, ToolBox, ToolName
 from northdesk.clients.llm.base import LlmClient, LlmTurn, Message
 from northdesk.domain.models import Decision, Ticket
 
@@ -46,7 +46,7 @@ async def run_agent(llm: LlmClient, ticket: Ticket, tools: ToolBox, *, max_turns
             continue
         results: list[dict[str, Any]] = []
         for call in turn.tool_calls:
-            if call.name == SUBMIT_DECISION:
+            if call.name == ToolName.SUBMIT_DECISION:
                 try:
                     return parse_decision(call.arguments)
                 except DecisionFormatError as exc:

@@ -23,7 +23,7 @@ def approval_refusal(state: TicketState, request: ApprovalRequest) -> ApprovalRe
     """Why this answer cannot be accepted now, or None when it can."""
     if state.step != Step.AWAITING_APPROVAL or state.approval is not None:
         return ApprovalRefusal(RefusalKind.NOT_AWAITING, f"ticket is not awaiting approval (step: {state.step})")
-    if request.decision not in {ApprovalDecision.APPROVE, ApprovalDecision.REJECT}:
+    if request.decision not in ApprovalDecision:
         return ApprovalRefusal(RefusalKind.INVALID, "decision must be 'approve' or 'reject'")
     if len(request.comment) > MAX_APPROVAL_COMMENT_LENGTH:
         return ApprovalRefusal(RefusalKind.INVALID, f"comment is longer than {MAX_APPROVAL_COMMENT_LENGTH} characters")
