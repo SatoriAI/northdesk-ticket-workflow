@@ -7,12 +7,11 @@ error would not escalate the ticket but fail the workflow task again and again.
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from northdesk.agent.tools import MAX_MESSAGE_LENGTH, MAX_REASON_LENGTH
+from northdesk.agent.tools import MAX_MESSAGE_LENGTH, MAX_REASON_LENGTH, SUBMIT_DECISION, TOOL_SPECS
 from northdesk.domain.models import Decision
 
-_FIELDS = frozenset(
-    {"category", "priority", "action", "message", "reason", "kb_article_ids", "invoice_id", "amount_eur"}
-)
+_SUBMIT_SCHEMA = next(spec for spec in TOOL_SPECS if spec["name"] == SUBMIT_DECISION)["input_schema"]
+_FIELDS = frozenset(_SUBMIT_SCHEMA["properties"])
 
 
 class DecisionFormatError(ValueError):

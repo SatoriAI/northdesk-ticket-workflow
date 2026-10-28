@@ -10,11 +10,12 @@ LOAD_CONTEXT_RETRY = RetryPolicy(initial_interval=timedelta(seconds=1), maximum_
 
 # One LLM loop, tool calls included; bounded so a hung provider call is retried rather than waited on.
 DECIDE_TIMEOUT = timedelta(seconds=60)
+# Waits of 2, 4, 8, 16 and 30 s: a provider outage of about a minute is ridden out before the ticket escalates.
 DECIDE_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=2),
     backoff_coefficient=2.0,
     maximum_interval=timedelta(seconds=30),
-    maximum_attempts=4,
+    maximum_attempts=6,
 )
 
 ACT_TIMEOUT = timedelta(seconds=15)
