@@ -1,0 +1,64 @@
+x-app: &app
+  build: .
+  image: northdesk:local
+  restart: unless-stopped
+
+services:
+  temporal:
+    # Dev server: in-memory persistence, so `docker compose down` starts the next run from a clean state.
+    image: temporalio/temporal:1.9.1
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-ip", "0.0.0.0", "--ui-port", "8233"]
+    ports:
+      - "7233:7233"   # gRPC frontend
+      - "8233:8233"   # Web UI
+    healthcheck:
+      # The CLI ships in the image; curl does not.
+      test: ["CMD", "temporal", "operator", "cluster", "health"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  helpdesk:
+    <<: *app
+    command: ["uvicorn", "helpdesk.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      HELPDESK_DB_PATH: /data/helpdesk.sqlite3
+    ports:
+      - "8001:8001"
+    volumes:
+      - helpdesk-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "northdesk.workflows.worker"]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      HELPDESK_URL: http://helpdesk:8001
+      LLM_MODE: ${LLM_MODE:-fake}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    depends_on:
+      temporal:
+        condition: service_healthy
+      helpdesk:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      ENABLE_DOCS: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+volumes:
+  helpdesk-data:
