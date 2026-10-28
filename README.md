@@ -35,26 +35,26 @@ make test-offline   # the whole suite in a container with --network none
 `make check` needs [uv](https://docs.astral.sh/uv/) (`uv sync` first). The workflow tests use Temporal's
 time-skipping test server, which the SDK downloads on first use and caches. Set `TEMPORAL_TEST_SERVER_DIR` to a
 directory holding (or to receive) the binary to make that explicit; the test image downloads it there at build
-time, which is why `make test-offline` needs no network. CI (GitHub Actions) runs both commands on every push.
+time, which is why `make test-offline` needs no network. CI (GitHub Actions) runs both on every push to `main` and
+on pull requests.
 
 ## 2. Try it
 
-Post a ticket (the same seven are in `northdesk/data/tickets.json`), then read its state:
+Post all seven sample tickets straight from `northdesk/data/tickets.json` (needs `jq`), then read their state:
 
 ```bash
-curl -i -X POST localhost:8000/tickets -H 'content-type: application/json' \
-  -d '{"ticket_id":"T-1","customer_id":"C-200","subject":"Cannot log in","body":"I forgot my password and cannot get into my account."}'
-# 202 Accepted, Location: /tickets/T-1, {"ticket_id":"T-1","workflow_id":"ticket-T-1"}; the same POST again: 200
+jq -c '.[]' northdesk/data/tickets.json | while read -r ticket; do
+  curl -s -X POST localhost:8000/tickets -H 'content-type: application/json' -d "$ticket"; echo
+done
+# each answers 202 with {"ticket_id":"T-1","workflow_id":"ticket-T-1"} and Location: /tickets/T-1; posting again: 200
 
-curl localhost:8000/tickets/T-1
-# {"step":"completed","decision":{...,"action":"reply","kb_article_ids":["KB-1"]},"result":{...},"history":[...]}
+for id in T-1 T-2 T-3 T-4 T-5 T-6 T-7; do curl -s localhost:8000/tickets/$id | jq -c '{ticket_id, step, command}'; done
+curl -s localhost:8000/tickets/T-1 | jq    # step, the agent's proposal, the command carried out, result, history
 ```
 
 T-2 is a refund, so it stops at `awaiting_approval` until someone answers:
 
 ```bash
-curl -X POST localhost:8000/tickets -H 'content-type: application/json' \
-  -d '{"ticket_id":"T-2","customer_id":"C-100","subject":"Charged twice","body":"We were charged twice for September. Please refund the extra payment."}'
 curl localhost:8000/tickets/T-2            # "step": "awaiting_approval", command: refund 49.00 EUR of INV-1002
 curl -X POST localhost:8000/tickets/T-2/approval -H 'content-type: application/json' \
   -d '{"decision":"approve","comment":"duplicate charge confirmed"}'      # or "reject": the customer is told
@@ -160,8 +160,8 @@ ends whenever the Temporal container restarts.
 
 - **Validation uses only `load_context`'s data**, never values the model echoes back. A broken rule turns the
   decision into an escalation that names the rule, and only the fields an action's rules checked are carried out
-  (a reply cannot smuggle a refund amount through). The decision is untrusted text, so the history records only
-  validated values.
+  (a reply cannot smuggle a refund amount through). The decision is untrusted text, so the history records
+  validated values; a rejected field appears there only as a short quoted excerpt (at most 64 characters).
 - **The tools are read-only and bound to the ticket's customer** on the server side; a `customer_id` argument from
   the model is ignored. The ticket goes to the model as escaped JSON inside `<ticket>` delimiters, as data.
 - **Every refund waits for a person**, however valid it looks.
@@ -230,7 +230,9 @@ code, not the author's explanation of it.
   worker. Without one they return 503 after 10 s.
 - The fake helpdesk is not production-grade: one SQLite file, one lock, no authentication.
 - Real-LLM mode has not been run with a real key here. To check it: `LLM_MODE=real LLM_API_KEY=… docker compose up
-  --build`, post T-1, and `GET /tickets/T-1` should show `account / normal / reply` citing KB-1.
+  --build`, post T-1, and `GET /tickets/T-1` should show `account / normal / reply` citing KB-1. If model calls come
+  close to the 30 s per-call timeout, raise `LLM_TIMEOUT_SECONDS` (a timeout restarts the whole agent loop; keep six
+  calls within the 4 min loop budget).
 - The approval response shows the state at the moment the answer is accepted (`awaiting_approval`, approval set);
   the workflow moves on right after. Making the handler wait for the next step changed the recorded history and
   failed the replay test, so it was not done.
@@ -251,6 +253,7 @@ live in `northdesk/settings.py` and `helpdesk/app.py`.
 | Name | Default | Notes |
 | --- | --- | --- |
 | `LLM_MODE` | `fake` | `real` uses Claude and needs `LLM_API_KEY` |
+| `LLM_PROVIDER` | `anthropic` | the provider switch; Anthropic is the one implemented |
 | `LLM_API_KEY` | (empty) | required only when `LLM_MODE=real`; never commit it |
 | `LLM_MODEL` | `claude-opus-5-5` | |
 | `LLM_TIMEOUT_SECONDS` | `30` | per model call; the whole loop has 4 min |
