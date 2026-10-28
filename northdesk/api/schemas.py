@@ -1,7 +1,9 @@
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from northdesk.workflows.ticket_workflow import MAX_APPROVAL_COMMENT_LENGTH
 
 TICKET_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 
@@ -13,6 +15,18 @@ class TicketIn(BaseModel):
     customer_id: str = Field(min_length=1, max_length=64)
     subject: str = Field(max_length=500)
     body: str = Field(max_length=20_000)
+
+
+class ApprovalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["approve", "reject"]
+    comment: str = Field(default="", max_length=MAX_APPROVAL_COMMENT_LENGTH)
+
+
+class ApprovalOut(BaseModel):
+    decision: str
+    comment: str
 
 
 class TicketAccepted(BaseModel):
@@ -52,5 +66,6 @@ class TicketStateOut(BaseModel):
     step: str
     decision: DecisionOut | None
     command: DecisionOut | None
+    approval: ApprovalOut | None
     result: ActionResultOut | None
     history: list[HistoryEntryOut]

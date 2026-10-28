@@ -6,5 +6,8 @@ ERROR_TYPE_BASE = "https://errors.northdesk.example/"
 # One workflow per ticket; the ID doubles as the duplicate guard.
 WORKFLOW_ID_PREFIX = "ticket-"
 
+# A query or Update needs a running worker; without one the call would hang, so answer 503 after this.
+TEMPORAL_CALL_TIMEOUT_SECONDS = 10.0
+
 # Readiness must answer well inside a probe timeout.
 READINESS_TEMPORAL_TIMEOUT_SECONDS = 2.0

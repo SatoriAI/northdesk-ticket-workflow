@@ -34,7 +34,9 @@ class FakeTemporalClient:
     def __init__(self) -> None:
         self.service_client = FakeServiceClient()
         self.workflows: dict[str, str] = {}  # workflow ID -> "running" | "closed"
-        self.states: dict[str, Any] = {}  # workflow ID -> what its state query returns
+        self.states: dict[str, Any] = {}  # workflow ID -> what its query or Update returns, while it runs
+        self.call_errors: dict[str, Exception] = {}  # workflow ID -> what its query or Update raises instead
+        self.updates: list[tuple[str, Any]] = []  # (workflow ID, request) of every Update sent
 
     async def start_workflow(self, _workflow: Any, _arg: Any, *, id: str, **_: Any) -> SimpleNamespace:
         if self.workflows.get(id) == "closed":
@@ -43,13 +45,36 @@ class FakeTemporalClient:
         self.workflows[id] = "running"
         return SimpleNamespace(_start_workflow_response=SimpleNamespace(started=started))
 
-    def get_workflow_handle(self, workflow_id: str) -> SimpleNamespace:
-        async def query(_query: Any) -> Any:
-            if workflow_id not in self.states:
-                raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
-            return self.states[workflow_id]
+    def get_workflow_handle(self, workflow_id: str) -> FakeHandle:
+        return FakeHandle(self, workflow_id)
 
-        return SimpleNamespace(query=query)
+
+class FakeHandle:
+    """A workflow handle whose query, Update and describe answer from the fake client's dictionaries."""
+
+    def __init__(self, client: FakeTemporalClient, workflow_id: str) -> None:
+        self.client, self.id = client, workflow_id
+
+    async def query(self, _query: Any, **_: Any) -> Any:
+        if self.id in self.client.call_errors:
+            raise self.client.call_errors[self.id]
+        if self.id not in self.client.states:
+            raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
+        return self.client.states[self.id]
+
+    async def execute_update(self, _update: Any, request: Any, **_: Any) -> Any:
+        self.client.updates.append((self.id, request))
+        if self.id in self.client.call_errors:
+            raise self.client.call_errors[self.id]
+        if self.id not in self.client.states:
+            # Like the server: NOT_FOUND for an unknown workflow and for a finished one alike.
+            raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
+        return self.client.states[self.id]
+
+    async def describe(self, **_: Any) -> SimpleNamespace:
+        if self.id not in self.client.workflows:
+            raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
+        return SimpleNamespace(status=self.client.workflows[self.id])
 
 
 @pytest.fixture(scope="session")
