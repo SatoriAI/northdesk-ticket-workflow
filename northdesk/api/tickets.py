@@ -60,6 +60,8 @@ async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: 
     """Approve or reject the refund the ticket is waiting on (the workflow's `approval` Update).
 
     409 when the ticket is not waiting for approval: it is at another step, already answered, or finished.
+    The returned state is the moment the answer was accepted: `approval` is set and the step is still
+    `awaiting_approval`; the workflow moves on to acting right after (see GET).
     """
     handle = client.get_workflow_handle(workflow_id_for(ticket_id))
     try:
