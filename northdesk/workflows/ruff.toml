@@ -1,0 +1,6 @@
+# Workflows and activities are the Temporal layer: Temporal is allowed here, FastAPI still is not.
+extend = "../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"fastapi".msg = "Only northdesk/main.py and northdesk/api/ may import FastAPI."
+"starlette".msg = "Only northdesk/main.py and northdesk/api/ may import Starlette."
