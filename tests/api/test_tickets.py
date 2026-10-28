@@ -1,3 +1,4 @@
+import logging
 from dataclasses import replace
 from decimal import Decimal
 
@@ -7,6 +8,7 @@ from temporalio.client import WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
 
 from northdesk.domain.models import ApprovalRequest, Decision, Step, TicketState
+from northdesk.log import ContextLogFilter
 from northdesk.workflows.contract import NOT_AWAITING_APPROVAL
 from tests.conftest import FakeTemporalClient
 
@@ -124,3 +126,21 @@ async def test_approve__malformed_answer_is_problem_422(client: httpx.AsyncClien
     response = await client.post("/tickets/T-2/approval", json=body)
 
     assert (response.status_code, response.json()["code"]) == (422, "validation_error")
+
+
+# --- logs ------------------------------------------------------------------------------------------------------
+
+
+async def test_logs__lines_about_a_ticket_carry_its_ids(
+    client: httpx.AsyncClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.handler.addFilter(ContextLogFilter())  # the filter logging.json installs on the real handler
+    caplog.set_level(logging.INFO)
+
+    response = await client.post("/tickets/T-404/approval", json={"decision": "approve"})
+
+    lines = [r for r in caplog.records if r.name in {"northdesk.access", "northdesk.api.handlers"}]
+    assert {r.name for r in lines} == {"northdesk.access", "northdesk.api.handlers"}
+    for line in lines:
+        assert (line.ticket_id, line.workflow_id) == ("T-404", "ticket-T-404")  # type: ignore[attr-defined]
+        assert line.request_id == response.headers["x-request-id"]  # type: ignore[attr-defined]

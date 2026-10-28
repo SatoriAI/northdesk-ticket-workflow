@@ -2,7 +2,7 @@
   "version": 1,
   "disable_existing_loggers": false,
   "filters": {
-    "request_id": {"()": "northdesk.log.RequestIdLogFilter"}
+    "context": {"()": "northdesk.log.ContextLogFilter"}
   },
   "formatters": {
     "json": {"()": "northdesk.log.JsonFormatter"}
@@ -12,12 +12,12 @@
       "class": "logging.StreamHandler",
       "stream": "ext://sys.stdout",
       "formatter": "json",
-      "filters": ["request_id"]
+      "filters": ["context"]
     }
   },
   "loggers": {
     "uvicorn": {"level": "INFO"},
-    "uvicorn.access": {"level": "INFO"},
+    "uvicorn.access": {"level": "WARNING"},
     "temporalio": {"level": "INFO"}
   },
   "root": {"level": "INFO", "handlers": ["stdout"]}

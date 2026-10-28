@@ -8,19 +8,32 @@ from datetime import UTC, datetime
 from importlib import resources
 from typing import Any
 
+from northdesk.constants import WORKFLOW_ID_PREFIX
+
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
+# Set by the API once it knows which ticket a request is about; every line logged after that carries it.
+ticket_id_var: ContextVar[str | None] = ContextVar("ticket_id", default=None)
 
 # Attributes every LogRecord has; anything else on a record came from `extra=` and is emitted as a field.
 _STANDARD_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {"message", "asctime"}
 
 
-class RequestIdLogFilter(logging.Filter):
-    """Attach the current request ID, when there is one, to every record."""
+def bind_ticket(ticket_id: str) -> None:
+    """Mark the rest of this request as being about `ticket_id`, for the logs."""
+    ticket_id_var.set(ticket_id)
+
+
+class ContextLogFilter(logging.Filter):
+    """Attach the current request ID and, once known, the ticket and its workflow ID to every record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         request_id = request_id_var.get()
         if request_id is not None:
             record.request_id = request_id
+        ticket_id = ticket_id_var.get()
+        if ticket_id is not None and not hasattr(record, "ticket_id"):
+            record.ticket_id = ticket_id
+            record.workflow_id = f"{WORKFLOW_ID_PREFIX}{ticket_id}"
         return True
 
 

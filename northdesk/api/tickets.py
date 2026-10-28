@@ -2,7 +2,7 @@ import dataclasses
 from datetime import timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Response, status
+from fastapi import APIRouter, Depends, Path, Response, status
 from temporalio.client import WorkflowHandle, WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError, RPCStatusCode
@@ -13,12 +13,20 @@ from northdesk.api.schemas import TICKET_ID_PATTERN, ApprovalIn, TicketAccepted,
 from northdesk.constants import TEMPORAL_CALL_TIMEOUT_SECONDS
 from northdesk.domain.models import ApprovalRequest, Ticket, TicketState
 from northdesk.errors import TicketNotAwaitingApprovalError, TicketNotFoundError
+from northdesk.log import bind_ticket
 from northdesk.workflows.contract import APPROVAL_UPDATE, NOT_AWAITING_APPROVAL, STATE_QUERY
 from northdesk.workflows.starter import start_ticket_workflow, workflow_id_for
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
-TicketIdPath = Annotated[str, Path(pattern=TICKET_ID_PATTERN)]
+
+async def _bound_ticket_id(ticket_id: Annotated[str, Path(pattern=TICKET_ID_PATTERN)]) -> str:
+    """The validated path ticket ID, also bound to this request's log lines. Async, so it shares their context."""
+    bind_ticket(ticket_id)
+    return ticket_id
+
+
+TicketIdPath = Annotated[str, Depends(_bound_ticket_id)]
 CALL_TIMEOUT = timedelta(seconds=TEMPORAL_CALL_TIMEOUT_SECONDS)
 
 
@@ -31,6 +39,7 @@ async def create_ticket(
     ticket: TicketIn, client: TemporalClientDep, settings: SettingsDep, response: Response
 ) -> TicketAccepted:
     """202 starts the ticket's workflow; 200 means it already exists (running or finished) and nothing was started."""
+    bind_ticket(ticket.ticket_id)
     started = await start_ticket_workflow(
         client, Ticket(**ticket.model_dump()), task_queue=settings.temporal.task_queue
     )
