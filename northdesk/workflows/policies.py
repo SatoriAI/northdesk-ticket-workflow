@@ -5,6 +5,8 @@ from datetime import timedelta
 from temporalio.common import RetryPolicy
 
 LOAD_CONTEXT_TIMEOUT = timedelta(seconds=10)
+# Local data today, so a failure is a bug: retry briefly, then fail rather than sit in loading_context forever.
+LOAD_CONTEXT_RETRY = RetryPolicy(initial_interval=timedelta(seconds=1), maximum_attempts=3)
 
 # One LLM loop, tool calls included; bounded so a hung provider call is retried rather than waited on.
 DECIDE_TIMEOUT = timedelta(seconds=60)

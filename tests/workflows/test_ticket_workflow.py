@@ -14,8 +14,8 @@ T1 = Ticket("T-1", "C-200", "Can't log in", "I forgot my password and can't get 
 
 
 @activity.defn(name="load_context")
-async def load_context(customer_id: str) -> TicketContext:
-    return TicketContext(customer=Customer(customer_id, "Contoso Labs", "free", "active"), invoices=[])
+async def load_context(ticket: Ticket) -> TicketContext:
+    return TicketContext(customer=Customer(ticket.customer_id, "Contoso Labs", "free", "active"), invoices=[])
 
 
 @activity.defn(name="decide")
@@ -43,5 +43,5 @@ async def test_run__reply_completes(env: WorkflowEnvironment) -> None:
 
     assert state.step == Step.COMPLETED
     assert state.decision is not None and state.decision.kb_article_ids == ["KB-1"]
-    assert state.result is not None and state.result.idempotency_key.endswith(":reply")
+    assert state.result is not None and state.result.action == "reply"
     assert [entry.step for entry in state.history] == [Step.LOADING_CONTEXT, Step.DECIDING, Step.ACTING, Step.COMPLETED]

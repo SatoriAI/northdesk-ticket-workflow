@@ -10,6 +10,7 @@ with workflow.unsafe.imports_passed_through():
         ACT_TIMEOUT,
         DECIDE_RETRY,
         DECIDE_TIMEOUT,
+        LOAD_CONTEXT_RETRY,
         LOAD_CONTEXT_TIMEOUT,
     )
 
@@ -25,7 +26,10 @@ class TicketWorkflow:
         self._ticket_id = ticket.ticket_id
         self._advance(Step.LOADING_CONTEXT, "ticket received")
         context = await workflow.execute_activity_method(
-            TicketActivities.load_context, ticket.customer_id, start_to_close_timeout=LOAD_CONTEXT_TIMEOUT
+            TicketActivities.load_context,
+            ticket,
+            start_to_close_timeout=LOAD_CONTEXT_TIMEOUT,
+            retry_policy=LOAD_CONTEXT_RETRY,
         )
 
         self._advance(Step.DECIDING, f"customer {context.customer.customer_id} loaded")

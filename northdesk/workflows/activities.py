@@ -32,11 +32,11 @@ class TicketActivities:
         self._helpdesk = helpdesk
 
     @activity.defn
-    async def load_context(self, customer_id: str) -> TicketContext:
-        customer = self._repository.customer(customer_id)
+    async def load_context(self, ticket: Ticket) -> TicketContext:
+        customer = self._repository.customer(ticket.customer_id)
         if customer is None:
             raise ApplicationError("unknown customer", type=UNKNOWN_CUSTOMER, non_retryable=True)
-        return TicketContext(customer=customer, invoices=self._repository.invoices_of(customer_id))
+        return TicketContext(customer=customer, invoices=self._repository.invoices_of(ticket.customer_id))
 
     @activity.defn
     async def decide(self, request: DecideInput) -> Decision:
