@@ -15,7 +15,12 @@ request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 ticket_id_var: ContextVar[str | None] = ContextVar("ticket_id", default=None)
 
 # Attributes every LogRecord has; anything else on a record came from `extra=` and is emitted as a field.
-_STANDARD_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {"message", "asctime"}
+# `temporal_log` is the SDK core's raw entry on forwarded records; its content is already in the message.
+_STANDARD_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {
+    "message",
+    "asctime",
+    "temporal_log",
+}
 
 
 def bind_ticket(ticket_id: str) -> None:

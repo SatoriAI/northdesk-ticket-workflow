@@ -37,6 +37,10 @@ select = ["E", "F", "I", "UP", "B", "S", "ASYNC", "DTZ", "FAST", "TID", "RUF"]
 "starlette".msg = "Only northdesk/main.py and northdesk/api/ may import Starlette."
 "temporalio".msg = "Only northdesk/workflows/, northdesk/main.py and northdesk/api/ may import Temporal."
 "anthropic".msg = "Only northdesk/clients/llm/ may import the LLM provider SDK."
+# TID251 checks direct imports only; these packages would bring FastAPI or Temporal in indirectly.
+"northdesk.api".msg = "Only the composition root wires the HTTP layer in."
+"northdesk.main".msg = "The composition root is not imported by anything."
+"northdesk.workflows".msg = "Only the API (via contract.py and starter.py) and the worker use the Temporal layer."
 
 [tool.ruff.lint.per-file-ignores]
 # The composition root wires FastAPI and Temporal together. Directories with their own rules (api/, workflows/,

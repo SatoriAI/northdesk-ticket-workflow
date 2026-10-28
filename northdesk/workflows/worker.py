@@ -4,7 +4,6 @@ import asyncio
 import logging
 
 import httpx
-from temporalio.client import Client
 from temporalio.worker import Worker
 
 from northdesk.clients.helpdesk.client import HelpdeskClient
@@ -15,18 +14,14 @@ from northdesk.log import configure_logging
 from northdesk.settings import LlmSettings, WorkerSettings
 from northdesk.workflows import log_context
 from northdesk.workflows.activities import TicketActivities
-from northdesk.workflows.converter import DATA_CONVERTER
+from northdesk.workflows.client import connect
 from northdesk.workflows.ticket_workflow import TicketWorkflow
 
 logger = logging.getLogger(__name__)
 
 
 async def run(settings: WorkerSettings) -> None:
-    client = await Client.connect(
-        settings.temporal.address,
-        namespace=settings.temporal.namespace,
-        data_converter=DATA_CONVERTER,
-    )
+    client = await connect(settings.temporal)
     async with httpx.AsyncClient(
         base_url=settings.helpdesk.url, timeout=settings.helpdesk.timeout_seconds
     ) as helpdesk_http:

@@ -13,7 +13,7 @@ from northdesk.api.health import router as health_router
 from northdesk.api.request_id import RequestIdMiddleware
 from northdesk.api.tickets import router as tickets_router
 from northdesk.settings import ApiSettings
-from northdesk.workflows.converter import DATA_CONVERTER
+from northdesk.workflows.client import connect
 
 
 class State(TypedDict):
@@ -28,12 +28,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[State]:
         async with AsyncExitStack():  # reverse-order cleanup for resources added later, even if startup fails
             # Lazy: the API starts even while Temporal is still booting; /health/ready reports reachability.
-            temporal_client = await Client.connect(
-                settings.temporal.address,
-                namespace=settings.temporal.namespace,
-                data_converter=DATA_CONVERTER,
-                lazy=True,
-            )
+            temporal_client = await connect(settings.temporal, lazy=True)
             yield {"settings": settings, "temporal_client": temporal_client}
 
     app = FastAPI(

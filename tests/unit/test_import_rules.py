@@ -9,8 +9,9 @@ import pytest
 ROOT = Path(__file__).parents[2]
 # Bans a directory deliberately lifts, and why.
 EXEMPT = {
-    "northdesk/api": {"fastapi", "starlette", "temporalio"},  # the HTTP edge, holding the Temporal client
-    "northdesk/workflows": {"temporalio"},  # the Temporal layer
+    # the HTTP edge, holding the Temporal client; it may use the workflow contract and starter (it bans the rest)
+    "northdesk/api": {"fastapi", "starlette", "temporalio", "northdesk.api", "northdesk.workflows"},
+    "northdesk/workflows": {"temporalio", "northdesk.workflows"},  # the Temporal layer
     "northdesk/clients/llm": {"anthropic"},  # the provider SDK's one home
 }
 
