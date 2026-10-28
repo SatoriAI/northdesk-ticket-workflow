@@ -34,10 +34,10 @@ from northdesk.workflows.activities import (
     DecideInput,
 )
 from northdesk.workflows.ticket_workflow import (
-    ACT_FAILED,
     INVALID_APPROVAL,
     NOT_AWAITING_APPROVAL,
     REFUND_DECLINED_MESSAGE,
+    TICKET_FAILED,
     TicketWorkflow,
 )
 
@@ -66,6 +66,8 @@ class Stubs:
 
     @activity.defn(name="load_context")
     async def load_context(self, ticket: Ticket) -> TicketContext:
+        if ticket.customer_id == "C-broken":
+            raise RuntimeError("data layer unavailable")
         if ticket.customer_id == "C-999":
             raise ApplicationError("unknown customer", type=UNKNOWN_CUSTOMER, non_retryable=True)
         return TicketContext(
@@ -275,7 +277,7 @@ async def test_run__act_out_of_attempts_fails_with_the_key_to_check(env: Workflo
     with pytest.raises(WorkflowFailureError) as raised:
         await handle.result()
 
-    assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == ACT_FAILED
+    assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == TICKET_FAILED
     state = await handle.query(TicketWorkflow.state)
     assert state.step == Step.FAILED
     assert (
@@ -338,3 +340,15 @@ async def test_run__cancel_while_deciding_cancels_without_acting(env: WorkflowEn
         await handle.result()
     assert is_cancelled_exception(raised.value.cause)
     assert stubs.performed == []
+
+
+async def test_run__load_context_failure_ends_in_failed_step(env: WorkflowEnvironment, stubs: Stubs) -> None:
+    handle = await start(env, "T-1", customer_id="C-broken")
+
+    with pytest.raises(WorkflowFailureError) as raised:
+        await handle.result()
+
+    assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == TICKET_FAILED
+    state = await handle.query(TicketWorkflow.state)
+    assert (state.step, state.history[-1].reason) == (Step.FAILED, "loading_context failed (RuntimeError)")
+    assert stubs.decided == [] and stubs.performed == []

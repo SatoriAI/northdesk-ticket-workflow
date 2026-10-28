@@ -39,7 +39,7 @@ with workflow.unsafe.imports_passed_through():
         LOAD_CONTEXT_TIMEOUT,
     )
 
-ACT_FAILED = "ActFailed"
+TICKET_FAILED = "TicketFailed"
 # Failure types of a refused approval, so the API can answer 409 or 422 without reading messages.
 NOT_AWAITING_APPROVAL = "NotAwaitingApproval"
 INVALID_APPROVAL = "InvalidApproval"
@@ -59,12 +59,20 @@ class TicketWorkflow:
     @workflow.run
     async def run(self, ticket: Ticket) -> TicketState:
         self._ticket_id = ticket.ticket_id
-        command, reason = await self._decide(ticket)
-        if command.action == Action.REFUND:
-            command, reason = await self._await_approval(command)
-        self._state.command = command
-        self._advance(Step.ACTING, reason)
-        await self._act(command)
+        try:
+            command, reason = await self._decide(ticket)
+            if command.action == Action.REFUND:
+                command, reason = await self._await_approval(command)
+            self._state.command = command
+            self._advance(Step.ACTING, reason)
+            await self._act(command)
+        except ActivityError as exc:
+            if is_cancelled_exception(exc):  # the workflow itself was cancelled: stop, record nothing
+                raise
+            # Any other failure that reaches here ends the ticket: say where it stopped and why, then fail.
+            reason = self._failure_reason(exc)
+            self._advance(Step.FAILED, reason)
+            raise ApplicationError(reason, type=TICKET_FAILED, non_retryable=True) from exc
         self._advance(Step.COMPLETED, f"{command.action} done")
         return self._state
 
@@ -104,7 +112,7 @@ class TicketWorkflow:
                 retry_policy=LOAD_CONTEXT_RETRY,
             )
         except ActivityError as exc:
-            if _failure_type(exc) != UNKNOWN_CUSTOMER:  # cancellation or a broken data layer: not ours to hide
+            if _failure_type(exc) != UNKNOWN_CUSTOMER:  # cancellation or a broken data layer: run() handles it
                 raise
             return _escalation(Category.OTHER, Priority.NORMAL, "unknown customer")
 
@@ -151,25 +159,27 @@ class TicketWorkflow:
         return declined, f"refund rejected{comment}; telling the customer"
 
     async def _act(self, command: Command) -> None:
-        key = f"{workflow.info().workflow_id}:{command.action.value}"
-        try:
-            self._state.result = await workflow.execute_activity_method(
-                TicketActivities.act,
-                ActInput(ticket_id=self._ticket_id, command=command, idempotency_key=key),
-                start_to_close_timeout=ACT_TIMEOUT,
-                retry_policy=ACT_RETRY,
-            )
-        except ActivityError as exc:
-            if is_cancelled_exception(exc):
-                raise
-            # Fail the workflow and say where to look; a fallback action could double up with one already done.
-            failure = _failure_type(exc)
-            if failure == HELPDESK_REJECTED:  # a 4xx: nothing was done, or the key already holds another request
-                reason = f"{command.action} rejected by the helpdesk; check helpdesk key {key}"
-            else:  # out of attempts: any of them may have been performed with its response lost
-                reason = f"{command.action} failed ({failure}); outcome unknown, check helpdesk key {key}"
-            self._advance(Step.FAILED, reason)
-            raise ApplicationError(reason, type=ACT_FAILED, non_retryable=True) from exc
+        self._state.result = await workflow.execute_activity_method(
+            TicketActivities.act,
+            ActInput(ticket_id=self._ticket_id, command=command, idempotency_key=self._key(command)),
+            start_to_close_timeout=ACT_TIMEOUT,
+            retry_policy=ACT_RETRY,
+        )
+
+    def _failure_reason(self, exc: ActivityError) -> str:
+        failure = _failure_type(exc)
+        command = self._state.command
+        if self._state.step != Step.ACTING or command is None:
+            return f"{self._state.step} failed ({failure})"
+        # A fallback action could double up with one already done, so the ticket fails and says where to look.
+        if failure == HELPDESK_REJECTED:  # a 4xx: nothing was done, or the key already holds another request
+            return f"{command.action} rejected by the helpdesk; check helpdesk key {self._key(command)}"
+        # Out of attempts: any of them may have been performed with its response lost.
+        return f"{command.action} failed ({failure}); outcome unknown, check helpdesk key {self._key(command)}"
+
+    @staticmethod
+    def _key(command: Command) -> str:
+        return f"{workflow.info().workflow_id}:{command.action.value}"
 
     def _advance(self, step: Step, reason: str) -> None:
         self._state.step = step
