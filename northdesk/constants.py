@@ -1,7 +1,5 @@
 """Static limits and names. Never env-driven."""
 
-SERVICE_NAME = "northdesk"
-
 # Base URI for RFC 9457 problem `type` values; the error `code` is appended.
 ERROR_TYPE_BASE = "https://errors.northdesk.example/"
 
