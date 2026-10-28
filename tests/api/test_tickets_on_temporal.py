@@ -62,8 +62,10 @@ async def test_refund_flow__post_wait_approve_and_refuse_a_second_answer(api: ht
     done = await wait_for(api, "T-2", "completed")
     assert (done["result"]["action"], done["approval"]["comment"]) == ("refund", "confirmed")
 
-    again = await api.post("/tickets/T-2/approval", json={"decision": "reject"})
-    assert (again.status_code, again.json()["code"]) == (409, "ticket_not_awaiting_approval")
+    resent = await api.post("/tickets/T-2/approval", json={"decision": "approve", "comment": "confirmed"})
+    assert resent.status_code == 200  # the same answer again, e.g. after a lost response: safe
+    changed = await api.post("/tickets/T-2/approval", json={"decision": "reject"})
+    assert (changed.status_code, changed.json()["code"]) == (409, "ticket_not_awaiting_approval")
     assert (await api.post("/tickets", json=T2)).status_code == 200
 
 

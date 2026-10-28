@@ -33,13 +33,8 @@ from northdesk.workflows.activities import (
     ActInput,
     DecideInput,
 )
-from northdesk.workflows.ticket_workflow import (
-    INVALID_APPROVAL,
-    NOT_AWAITING_APPROVAL,
-    REFUND_DECLINED_MESSAGE,
-    TICKET_FAILED,
-    TicketWorkflow,
-)
+from northdesk.workflows.contract import APPROVAL_UPDATE, INVALID_APPROVAL, NOT_AWAITING_APPROVAL, TICKET_FAILED
+from northdesk.workflows.ticket_workflow import REFUND_DECLINED_MESSAGE, TicketWorkflow
 
 TASK_QUEUE = "test-tickets"
 
@@ -188,7 +183,9 @@ async def test_run__valid_refund_waits_without_acting(env: WorkflowEnvironment, 
 async def test_run__approved_refund_is_carried_out(env: WorkflowEnvironment, stubs: Stubs) -> None:
     handle = await awaiting_refund(env)
 
-    await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("approve", "duplicate charge confirmed"))
+    await handle.execute_update(
+        APPROVAL_UPDATE, ApprovalRequest("approve", "duplicate charge confirmed"), result_type=TicketState
+    )
     state: TicketState = await handle.result()
 
     assert stubs.actions == [Action.REFUND]
@@ -200,7 +197,7 @@ async def test_run__approved_refund_is_carried_out(env: WorkflowEnvironment, stu
 async def test_run__rejected_refund_tells_the_customer(env: WorkflowEnvironment, stubs: Stubs) -> None:
     handle = await awaiting_refund(env)
 
-    await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("reject"))
+    await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("reject"), result_type=TicketState)
     state: TicketState = await handle.result()
 
     assert stubs.actions == [Action.REPLY]
@@ -224,7 +221,7 @@ async def test_approval__refused_when_not_awaiting_approval(env: WorkflowEnviron
     await asyncio.wait_for(stubs.deciding.wait(), timeout=30)
 
     with pytest.raises(WorkflowUpdateFailedError) as raised:
-        await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("approve"))
+        await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("approve"), result_type=TicketState)
 
     assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == NOT_AWAITING_APPROVAL
     assert (await handle.query(TicketWorkflow.state)).approval is None
@@ -233,10 +230,10 @@ async def test_approval__refused_when_not_awaiting_approval(env: WorkflowEnviron
 
 async def test_approval__second_answer_is_refused(env: WorkflowEnvironment, stubs: Stubs) -> None:
     handle = await awaiting_refund(env)
-    await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("reject"))
+    await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("reject"), result_type=TicketState)
 
     with pytest.raises(WorkflowUpdateFailedError) as raised:
-        await handle.execute_update(TicketWorkflow.approval, ApprovalRequest("approve"))
+        await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("approve"), result_type=TicketState)
 
     assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == NOT_AWAITING_APPROVAL
     await handle.result()
@@ -250,7 +247,7 @@ async def test_approval__malformed_answer_is_refused(
     handle = await awaiting_refund(env)
 
     with pytest.raises(WorkflowUpdateFailedError) as raised:
-        await handle.execute_update(TicketWorkflow.approval, request_)
+        await handle.execute_update(APPROVAL_UPDATE, request_, result_type=TicketState)
 
     assert isinstance(raised.value.cause, ApplicationError) and raised.value.cause.type == INVALID_APPROVAL
 
@@ -352,3 +349,19 @@ async def test_run__load_context_failure_ends_in_failed_step(env: WorkflowEnviro
     state = await handle.query(TicketWorkflow.state)
     assert (state.step, state.history[-1].reason) == (Step.FAILED, "loading_context failed (RuntimeError)")
     assert stubs.decided == [] and stubs.performed == []
+
+
+async def test_approval__resend_with_the_same_update_id_returns_the_first_answer(
+    env: WorkflowEnvironment, stubs: Stubs
+) -> None:
+    """What the API relies on to make resends safe: Temporal deduplicates an Update ID within a run."""
+    stubs.act_failures = 100  # keep the workflow running after the approval
+    handle = await awaiting_refund(env)
+    await handle.execute_update(APPROVAL_UPDATE, ApprovalRequest("approve"), id="approval", result_type=TicketState)
+
+    resent: TicketState = await handle.execute_update(
+        APPROVAL_UPDATE, ApprovalRequest("reject"), id="approval", result_type=TicketState
+    )
+
+    assert resent.approval == ApprovalRequest("approve")
+    await handle.terminate("test done")

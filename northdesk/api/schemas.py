@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from northdesk.workflows.ticket_workflow import MAX_APPROVAL_COMMENT_LENGTH
+from northdesk.domain.approval import MAX_APPROVAL_COMMENT_LENGTH
 
 TICKET_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 

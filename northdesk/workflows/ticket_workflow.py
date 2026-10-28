@@ -9,6 +9,7 @@ from temporalio import workflow
 from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
 
 with workflow.unsafe.imports_passed_through():
+    from northdesk.domain.approval import RefusalKind, approval_refusal
     from northdesk.domain.models import (
         Action,
         ApprovalDecision,
@@ -29,6 +30,14 @@ with workflow.unsafe.imports_passed_through():
         DecideInput,
         TicketActivities,
     )
+    from northdesk.workflows.contract import (
+        APPROVAL_UPDATE,
+        INVALID_APPROVAL,
+        NOT_AWAITING_APPROVAL,
+        STATE_QUERY,
+        TICKET_FAILED,
+        WORKFLOW_NAME,
+    )
     from northdesk.workflows.policies import (
         ACT_RETRY,
         ACT_TIMEOUT,
@@ -39,18 +48,13 @@ with workflow.unsafe.imports_passed_through():
         LOAD_CONTEXT_TIMEOUT,
     )
 
-TICKET_FAILED = "TicketFailed"
-# Failure types of a refused approval, so the API can answer 409 or 422 without reading messages.
-NOT_AWAITING_APPROVAL = "NotAwaitingApproval"
-INVALID_APPROVAL = "InvalidApproval"
-MAX_APPROVAL_COMMENT_LENGTH = 500
 REFUND_DECLINED_MESSAGE = (
     "We have reviewed your refund request and cannot approve it. "
     "If you think this is a mistake, reply to this message and we will take another look."
 )
 
 
-@workflow.defn
+@workflow.defn(name=WORKFLOW_NAME)
 class TicketWorkflow:
     def __init__(self) -> None:
         self._state = TicketState()
@@ -76,30 +80,26 @@ class TicketWorkflow:
         self._advance(Step.COMPLETED, f"{command.action} done")
         return self._state
 
-    @workflow.query
+    @workflow.query(name=STATE_QUERY)
     def state(self) -> TicketState:
         return self._state
 
-    @workflow.update
+    @workflow.update(name=APPROVAL_UPDATE)
     def approval(self, request: ApprovalRequest) -> TicketState:
         # Synchronous on purpose: the SDK runs it straight after its validator, with no await in between, so two
-        # answers sent at once cannot both pass the "not answered yet" check.
+        # answers sent at once cannot both pass the "not answered yet" check. It returns the state at the moment
+        # the answer is accepted (step still awaiting_approval). An async handler that waited for the next step
+        # was tried and changes the recorded history (replay fails), so it would break approvals in flight.
         self._state.approval = request
         return self._state
 
     @approval.validator
     def _check_approval(self, request: ApprovalRequest) -> None:
         """Runs before the Update is accepted; raising refuses it without touching the workflow's history."""
-        if self._state.step != Step.AWAITING_APPROVAL or self._state.approval is not None:
-            raise ApplicationError(
-                f"ticket is not awaiting approval (step: {self._state.step})", type=NOT_AWAITING_APPROVAL
-            )
-        if request.decision not in {ApprovalDecision.APPROVE, ApprovalDecision.REJECT}:
-            raise ApplicationError("decision must be 'approve' or 'reject'", type=INVALID_APPROVAL)
-        if len(request.comment) > MAX_APPROVAL_COMMENT_LENGTH:
-            raise ApplicationError(
-                f"comment is longer than {MAX_APPROVAL_COMMENT_LENGTH} characters", type=INVALID_APPROVAL
-            )
+        refusal = approval_refusal(self._state, request)
+        if refusal is not None:
+            kind = NOT_AWAITING_APPROVAL if refusal.kind == RefusalKind.NOT_AWAITING else INVALID_APPROVAL
+            raise ApplicationError(refusal.reason, type=kind)
 
     async def _decide(self, ticket: Ticket) -> tuple[Command, str]:
         """The command to carry out and the reason recorded for it: load the context, ask the agent, validate."""

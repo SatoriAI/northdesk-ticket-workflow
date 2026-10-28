@@ -66,7 +66,7 @@ class FakeHandle:
         self.client.updates.append((self.id, request))
         if self.id in self.client.call_errors:
             raise self.client.call_errors[self.id]
-        if self.id not in self.client.states:
+        if self.id not in self.client.states or self.client.workflows.get(self.id) == "closed":
             # Like the server: NOT_FOUND for an unknown workflow and for a finished one alike.
             raise RPCError("workflow not found", RPCStatusCode.NOT_FOUND, b"")
         return self.client.states[self.id]

@@ -7,7 +7,7 @@ from temporalio.client import WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
 
 from northdesk.domain.models import ApprovalRequest, Decision, Step, TicketState
-from northdesk.workflows.ticket_workflow import NOT_AWAITING_APPROVAL
+from northdesk.workflows.contract import NOT_AWAITING_APPROVAL
 from tests.conftest import FakeTemporalClient
 
 T1 = {"ticket_id": "T-1", "customer_id": "C-200", "subject": "Can't log in", "body": "I forgot my password."}
@@ -104,6 +104,7 @@ async def test_approve__finished_ticket_is_problem_409(
     client: httpx.AsyncClient, temporal_client: FakeTemporalClient
 ) -> None:
     temporal_client.workflows["ticket-T-1"] = "closed"
+    temporal_client.states["ticket-T-1"] = TicketState(step=Step.COMPLETED)  # a finished workflow still answers
 
     response = await client.post("/tickets/T-1/approval", json={"decision": "reject"})
 

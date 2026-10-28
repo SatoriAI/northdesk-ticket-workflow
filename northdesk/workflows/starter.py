@@ -6,7 +6,7 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from northdesk.constants import WORKFLOW_ID_PREFIX
 from northdesk.domain.models import Ticket
-from northdesk.workflows.ticket_workflow import TicketWorkflow
+from northdesk.workflows.contract import WORKFLOW_NAME
 
 
 def workflow_id_for(ticket_id: str) -> str:
@@ -17,7 +17,7 @@ async def start_ticket_workflow(client: Client, ticket: Ticket, *, task_queue: s
     """Start the ticket's workflow unless it already exists. Returns True only if this call started it."""
     try:
         handle = await client.start_workflow(
-            TicketWorkflow.run,
+            WORKFLOW_NAME,  # by name: the API process does not load the worker's code
             ticket,
             id=workflow_id_for(ticket.ticket_id),
             task_queue=task_queue,
