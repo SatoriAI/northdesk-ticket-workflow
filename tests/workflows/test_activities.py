@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from http import HTTPStatus
 
 import httpx
 import pytest
@@ -32,7 +33,7 @@ async def act_with(handler: Callable[[httpx.Request], httpx.Response]) -> Action
 
 async def test_act__rejected_request_is_not_retried() -> None:
     with pytest.raises(ApplicationError) as raised:
-        await act_with(lambda _: httpx.Response(422))
+        await act_with(lambda _: httpx.Response(HTTPStatus.UNPROCESSABLE_ENTITY))
 
     assert raised.value.non_retryable
     assert raised.value.type == HELPDESK_REJECTED
@@ -40,7 +41,7 @@ async def test_act__rejected_request_is_not_retried() -> None:
 
 async def test_act__unavailable_helpdesk_is_retried() -> None:
     with pytest.raises(HelpdeskUnavailableError):
-        await act_with(lambda _: httpx.Response(503))
+        await act_with(lambda _: httpx.Response(HTTPStatus.SERVICE_UNAVAILABLE))
 
 
 async def test_act__sends_the_key_it_was_given() -> None:
@@ -48,7 +49,7 @@ async def test_act__sends_the_key_it_was_given() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         keys.append(request.headers["Idempotency-Key"])
-        return httpx.Response(200, json={"action_id": "A-1", "replayed": True})
+        return httpx.Response(HTTPStatus.OK, json={"action_id": "A-1", "replayed": True})
 
     result = await act_with(handler)
 

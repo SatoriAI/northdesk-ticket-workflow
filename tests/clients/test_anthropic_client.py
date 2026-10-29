@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from http import HTTPStatus
 from typing import Any
 
 import anthropic
@@ -64,7 +65,7 @@ async def complete(llm: AnthropicLlm) -> Any:
 
 async def test_complete__tool_calls_and_raw_content_for_the_next_turn() -> None:
     fallback = {"type": "fallback", "from": {"model": "claude-opus-5-5"}, "to": {"model": "claude-opus-4-8"}}
-    api = FakeApi(httpx2.Response(200, json=message(fallback, THINKING, tool_use("get_customer"))))
+    api = FakeApi(httpx2.Response(HTTPStatus.OK, json=message(fallback, THINKING, tool_use("get_customer"))))
 
     turn = await complete(llm_for(api))
 
@@ -73,7 +74,7 @@ async def test_complete__tool_calls_and_raw_content_for_the_next_turn() -> None:
 
 
 async def test_complete__request_shape() -> None:
-    api = FakeApi(httpx2.Response(200, json=message({"type": "text", "text": "ok"}, stop_reason="end_turn")))
+    api = FakeApi(httpx2.Response(HTTPStatus.OK, json=message({"type": "text", "text": "ok"}, stop_reason="end_turn")))
 
     await complete(llm_for(api))
 
@@ -87,7 +88,17 @@ async def test_complete__request_shape() -> None:
     assert "server-side-fallback-2026-07-01" in api.requests[0].headers["anthropic-beta"]
 
 
-@pytest.mark.parametrize("status", [408, 409, 429, 500, 503, 529])
+@pytest.mark.parametrize(
+    "status",
+    [
+        HTTPStatus.REQUEST_TIMEOUT,
+        HTTPStatus.CONFLICT,
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+        529,  # Anthropic's "overloaded"; not a standard status, so HTTPStatus has no member for it
+    ],
+)
 async def test_complete__temporary_failure_is_unavailable_and_not_retried_by_the_sdk(status: int) -> None:
     api = FakeApi(httpx2.Response(status, json={"type": "error", "error": {"type": "x", "message": "x"}}))
 
@@ -97,7 +108,16 @@ async def test_complete__temporary_failure_is_unavailable_and_not_retried_by_the
     assert len(api.requests) == 1  # Temporal owns retries
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 404, 422])
+@pytest.mark.parametrize(
+    "status",
+    [
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.UNAUTHORIZED,
+        HTTPStatus.FORBIDDEN,
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    ],
+)
 async def test_complete__permanent_failure_is_rejected(status: int) -> None:
     api = FakeApi(httpx2.Response(status, json={"type": "error", "error": {"type": "x", "message": "x"}}))
 
@@ -112,7 +132,7 @@ async def test_complete__transport_failure_is_unavailable(error: Exception) -> N
 
 
 async def test_complete__refusal_is_rejected() -> None:
-    api = FakeApi(httpx2.Response(200, json=message({"type": "text", "text": ""}, stop_reason="refusal")))
+    api = FakeApi(httpx2.Response(HTTPStatus.OK, json=message({"type": "text", "text": ""}, stop_reason="refusal")))
 
     with pytest.raises(LlmRejectedError, match="declined"):
         await complete(llm_for(api))
@@ -127,8 +147,8 @@ async def test_run_agent__real_client_loop_echoes_thinking_and_returns_the_decis
         "kb_article_ids": ["KB-1"],
     }
     api = FakeApi(
-        httpx2.Response(200, json=message(THINKING, tool_use("get_customer"))),
-        httpx2.Response(200, json=message(tool_use("submit_decision", **decision))),
+        httpx2.Response(HTTPStatus.OK, json=message(THINKING, tool_use("get_customer"))),
+        httpx2.Response(HTTPStatus.OK, json=message(tool_use("submit_decision", **decision))),
     )
     ticket = REPO.tickets["T-1"]
 

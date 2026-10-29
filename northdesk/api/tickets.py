@@ -1,5 +1,6 @@
 import dataclasses
 from datetime import timedelta
+from http import HTTPStatus
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Response, status
@@ -36,17 +37,17 @@ CALL_TIMEOUT = timedelta(seconds=10)
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit a ticket",
     responses={
-        202: {
+        HTTPStatus.ACCEPTED: {
             "description": "Ticket accepted; its workflow has started",
             "headers": {
                 "Location": {"description": "The ticket's URL, e.g. /tickets/T-1", "schema": {"type": "string"}}
             },
         },
-        200: {
+        HTTPStatus.OK: {
             "model": TicketAccepted,
             "description": "The ticket already exists (running or finished); the new body is ignored, nothing starts",
         },
-        **problem_responses(422, 503),
+        **problem_responses(HTTPStatus.UNPROCESSABLE_ENTITY, HTTPStatus.SERVICE_UNAVAILABLE),
     },
 )
 async def create_ticket(
@@ -63,7 +64,11 @@ async def create_ticket(
     return TicketAccepted(ticket_id=ticket.ticket_id, workflow_id=workflow_id_for(ticket.ticket_id))
 
 
-@router.get("/{ticket_id}", summary="Read a ticket's state", responses=problem_responses(404, 422, 503))
+@router.get(
+    "/{ticket_id}",
+    summary="Read a ticket's state",
+    responses=problem_responses(HTTPStatus.NOT_FOUND, HTTPStatus.UNPROCESSABLE_ENTITY, HTTPStatus.SERVICE_UNAVAILABLE),
+)
 async def get_ticket(ticket_id: TicketIdPath, client: TemporalClientDep) -> TicketStateOut:
     """The ticket's current step, decision, result and history, from the workflow's `state` query."""
     handle = client.get_workflow_handle(workflow_id_for(ticket_id))
@@ -77,7 +82,11 @@ async def get_ticket(ticket_id: TicketIdPath, client: TemporalClientDep) -> Tick
 
 
 @router.post(
-    "/{ticket_id}/approval", summary="Approve or reject a refund", responses=problem_responses(404, 409, 422, 503)
+    "/{ticket_id}/approval",
+    summary="Approve or reject a refund",
+    responses=problem_responses(
+        HTTPStatus.NOT_FOUND, HTTPStatus.CONFLICT, HTTPStatus.UNPROCESSABLE_ENTITY, HTTPStatus.SERVICE_UNAVAILABLE
+    ),
 )
 async def approve_ticket(ticket_id: TicketIdPath, approval: ApprovalIn, client: TemporalClientDep) -> TicketStateOut:
     """Approve or reject the refund the ticket is waiting on (the workflow's `approval` Update).

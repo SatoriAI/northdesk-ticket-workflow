@@ -17,6 +17,7 @@ import threading
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated, Any, TypedDict, cast
 
@@ -142,8 +143,12 @@ StoreDep = Annotated[ActionStore, Depends(get_store)]
 FaultsDep = Annotated[Faults, Depends(get_faults)]
 
 _ERRORS: dict[int | str, dict[str, Any]] = {
-    422: {"description": "Invalid request, or an idempotency key reused for a different request"},
-    503: {"description": "Temporary failure, or the action was performed and the response lost"},
+    HTTPStatus.UNPROCESSABLE_ENTITY: {
+        "description": "Invalid request, or an idempotency key reused for a different request"
+    },
+    HTTPStatus.SERVICE_UNAVAILABLE: {
+        "description": "Temporary failure, or the action was performed and the response lost"
+    },
 }
 
 
@@ -172,15 +177,18 @@ def create_app(settings: HelpdeskServiceSettings | None = None, rng: random.Rand
         extra = {"ticket_id": body.ticket_id, "workflow_id": body.workflow_id, "idempotency_key": idempotency_key}
         if faults.fail_before_performing():
             logger.info("temporary failure for %s, nothing performed", idempotency_key, extra=extra)
-            return JSONResponse({"detail": "temporary failure"}, status_code=503)
+            return JSONResponse({"detail": "temporary failure"}, status_code=HTTPStatus.SERVICE_UNAVAILABLE)
         try:
             result = store.perform(idempotency_key, body)  # committed from here on
         except KeyReusedError:
             logger.warning("refused %s: key already used for a different request", idempotency_key, extra=extra)
-            return JSONResponse({"detail": "idempotency key reused for a different request"}, status_code=422)
+            return JSONResponse(
+                {"detail": "idempotency key reused for a different request"},
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
         if faults.lose_response():
             logger.info("performed %s, then lost the response", idempotency_key, extra=extra)
-            return JSONResponse({"detail": "response lost"}, status_code=503)
+            return JSONResponse({"detail": "response lost"}, status_code=HTTPStatus.SERVICE_UNAVAILABLE)
         logger.info("%s %s", "replayed" if result.replayed else "performed", idempotency_key, extra=extra)
         return result
 

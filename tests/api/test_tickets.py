@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from decimal import Decimal
+from http import HTTPStatus
 from typing import Any
 
 import httpx
@@ -32,7 +33,7 @@ async def wait_for(api: httpx.AsyncClient, ticket_id: str, step: str) -> dict[st
 async def test_create_ticket__new_returns_202_with_location(api: httpx.AsyncClient) -> None:
     response = await api.post("/tickets", json=T1)
 
-    assert response.status_code == 202
+    assert response.status_code == HTTPStatus.ACCEPTED
     assert response.headers["location"] == "/tickets/T-1"
     assert response.json() == {"ticket_id": "T-1", "workflow_id": "ticket-T-1"}
 
@@ -43,7 +44,7 @@ async def test_create_ticket__running_duplicate_returns_200_same_workflow(
     first = await api_without_worker.post("/tickets", json=T1)  # no worker: it stays running
     second = await api_without_worker.post("/tickets", json=T1)
 
-    assert (first.status_code, second.status_code) == (202, 200)
+    assert (first.status_code, second.status_code) == (HTTPStatus.ACCEPTED, HTTPStatus.OK)
     assert second.json()["workflow_id"] == first.json()["workflow_id"]
     assert second.headers["location"] == "/tickets/T-1"
 
@@ -54,13 +55,13 @@ async def test_create_ticket__finished_duplicate_returns_200(api: httpx.AsyncCli
 
     response = await api.post("/tickets", json=T1)
 
-    assert (response.status_code, response.json()["workflow_id"]) == (200, "ticket-T-1")
+    assert (response.status_code, response.json()["workflow_id"]) == (HTTPStatus.OK, "ticket-T-1")
 
 
 async def test_create_ticket__unknown_field_is_validation_problem(api: httpx.AsyncClient) -> None:
     response = await api.post("/tickets", json={**T1, "priority": "urgent"})
 
-    assert response.status_code == 422
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     body = response.json()
     assert body["code"] == "validation_error"
     assert all(set(error) == {"loc", "msg", "type"} for error in body["errors"])  # input is never echoed
@@ -81,7 +82,7 @@ async def test_get_ticket__shows_steps_decision_and_result(api: httpx.AsyncClien
 async def test_get_ticket__unknown_is_problem_404(api: httpx.AsyncClient) -> None:
     response = await api.get("/tickets/T-404")
 
-    assert (response.status_code, response.json()["code"]) == (404, "ticket_not_found")
+    assert (response.status_code, response.json()["code"]) == (HTTPStatus.NOT_FOUND, "ticket_not_found")
 
 
 def test_state_out__shows_a_nan_proposal_without_failing() -> None:
@@ -97,16 +98,19 @@ def test_state_out__shows_a_nan_proposal_without_failing() -> None:
 
 
 async def test_approve__refund_is_carried_out_and_a_second_answer_refused(api: httpx.AsyncClient) -> None:
-    assert (await api.post("/tickets", json=T2)).status_code == 202
+    assert (await api.post("/tickets", json=T2)).status_code == HTTPStatus.ACCEPTED
     await wait_for(api, "T-2", "awaiting_approval")
 
     approved = await api.post("/tickets/T-2/approval", json={"decision": "approve", "comment": "confirmed"})
 
-    assert (approved.status_code, approved.json()["approval"]) == (200, {"decision": "approve", "comment": "confirmed"})
+    assert (approved.status_code, approved.json()["approval"]) == (
+        HTTPStatus.OK,
+        {"decision": "approve", "comment": "confirmed"},
+    )
     done = await wait_for(api, "T-2", "completed")
     assert done["result"]["action"] == "refund"
     again = await api.post("/tickets/T-2/approval", json={"decision": "approve", "comment": "confirmed"})
-    assert (again.status_code, again.json()["code"]) == (409, "ticket_not_awaiting_approval")
+    assert (again.status_code, again.json()["code"]) == (HTTPStatus.CONFLICT, "ticket_not_awaiting_approval")
     assert again.json()["detail"] == "ticket has already finished"
 
 
@@ -126,14 +130,14 @@ async def test_approve__wrong_step_is_problem_409(api: httpx.AsyncClient) -> Non
 
     response = await api.post("/tickets/T-slow/approval", json={"decision": "approve"})
 
-    assert (response.status_code, response.json()["code"]) == (409, "ticket_not_awaiting_approval")
+    assert (response.status_code, response.json()["code"]) == (HTTPStatus.CONFLICT, "ticket_not_awaiting_approval")
     assert response.json()["detail"] == "ticket is not awaiting approval (step: deciding)"
 
 
 async def test_approve__unknown_ticket_is_problem_404(api: httpx.AsyncClient) -> None:
     response = await api.post("/tickets/T-404/approval", json={"decision": "approve"})
 
-    assert (response.status_code, response.json()["code"]) == (404, "ticket_not_found")
+    assert (response.status_code, response.json()["code"]) == (HTTPStatus.NOT_FOUND, "ticket_not_found")
 
 
 @pytest.mark.parametrize(
@@ -142,20 +146,20 @@ async def test_approve__unknown_ticket_is_problem_404(api: httpx.AsyncClient) ->
 async def test_approve__malformed_answer_is_problem_422(api: httpx.AsyncClient, body: dict[str, object]) -> None:
     response = await api.post("/tickets/T-2/approval", json=body)
 
-    assert (response.status_code, response.json()["code"]) == (422, "validation_error")
+    assert (response.status_code, response.json()["code"]) == (HTTPStatus.UNPROCESSABLE_ENTITY, "validation_error")
 
 
 # --- Temporal or the worker not answering ----------------------------------------------------------------------
 
 
 async def test_get_and_approve__no_worker_is_problem_503(api_without_worker: httpx.AsyncClient) -> None:
-    assert (await api_without_worker.post("/tickets", json=T2)).status_code == 202
+    assert (await api_without_worker.post("/tickets", json=T2)).status_code == HTTPStatus.ACCEPTED
 
     got = await api_without_worker.get("/tickets/T-2")
     approved = await api_without_worker.post("/tickets/T-2/approval", json={"decision": "approve"})
 
-    assert (got.status_code, got.json()["code"]) == (503, "dependency_unavailable")
-    assert (approved.status_code, approved.json()["code"]) == (503, "dependency_unavailable")
+    assert (got.status_code, got.json()["code"]) == (HTTPStatus.SERVICE_UNAVAILABLE, "dependency_unavailable")
+    assert (approved.status_code, approved.json()["code"]) == (HTTPStatus.SERVICE_UNAVAILABLE, "dependency_unavailable")
     assert "check GET before resending" in approved.json()["detail"]
     assert "approval" not in got.json()["detail"]  # the resend advice is only for the approval route
 
@@ -166,7 +170,7 @@ async def test_tickets__unreachable_temporal_is_problem_503(
 ) -> None:
     response = await unreachable_api.request(method, path, json=T1 if method == "POST" else None)
 
-    assert (response.status_code, response.json()["code"]) == (503, "dependency_unavailable")
+    assert (response.status_code, response.json()["code"]) == (HTTPStatus.SERVICE_UNAVAILABLE, "dependency_unavailable")
 
 
 # --- logs ------------------------------------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from http import HTTPStatus
 
 from fastapi import APIRouter
 
@@ -19,7 +20,9 @@ async def live() -> dict[str, str]:
 
 
 @router.get(
-    "/ready", summary="Readiness: Temporal is reachable (a worker is not checked)", responses=problem_responses(503)
+    "/ready",
+    summary="Readiness: Temporal is reachable (a worker is not checked)",
+    responses=problem_responses(HTTPStatus.SERVICE_UNAVAILABLE),
 )
 async def ready(client: TemporalClientDep) -> dict[str, str]:
     try:

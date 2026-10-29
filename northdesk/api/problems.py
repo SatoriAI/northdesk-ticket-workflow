@@ -79,9 +79,11 @@ def problem_response(
     return ProblemResponse(body, status_code=status, headers=headers)
 
 
-_DESCRIPTIONS = {
-    503: "Temporal or a worker did not answer in time (GET and approval need a running worker); an approval may "
-    "still be applied once one polls, so check GET before resending it",
+_DESCRIPTIONS: dict[int, str] = {
+    HTTPStatus.SERVICE_UNAVAILABLE: (
+        "Temporal or a worker did not answer in time (GET and approval need a running worker); an approval may "
+        "still be applied once one polls, so check GET before resending it"
+    ),
 }
 
 

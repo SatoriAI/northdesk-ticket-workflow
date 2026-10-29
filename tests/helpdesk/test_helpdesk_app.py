@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from typing import Any
 
 import httpx
@@ -36,7 +37,7 @@ async def test_perform__temporary_failure_performs_nothing(helpdesk: httpx.Async
 
     response = await helpdesk.post("/actions", json=REFUND, headers=KEY)
 
-    assert response.status_code == 503
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert await actions(helpdesk) == []
 
 
@@ -45,14 +46,14 @@ async def test_perform__lost_response_has_still_performed(helpdesk: httpx.AsyncC
 
     response = await helpdesk.post("/actions", json=REFUND, headers=KEY)
 
-    assert response.status_code == 503
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert [action["idempotency_key"] for action in await actions(helpdesk)] == ["ticket-T-2:refund"]
 
 
 async def test_perform__missing_key_is_rejected(helpdesk: httpx.AsyncClient) -> None:
     response = await helpdesk.post("/actions", json=REFUND)
 
-    assert response.status_code == 422
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def test_perform__reused_key_with_different_request_is_refused(
@@ -64,7 +65,7 @@ async def test_perform__reused_key_with_different_request_is_refused(
 
     response = await helpdesk.post("/actions", json=other, headers=KEY)
 
-    assert response.status_code == 422
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert [action["details"]["invoice_id"] for action in await actions(helpdesk)] == ["INV-1002"]
 
 
@@ -75,4 +76,4 @@ async def test_perform__key_order_of_details_does_not_matter(helpdesk: httpx.Asy
 
     response = await helpdesk.post("/actions", json=reordered, headers=KEY)
 
-    assert (response.status_code, response.json()["replayed"]) == (200, True)
+    assert (response.status_code, response.json()["replayed"]) == (HTTPStatus.OK, True)
