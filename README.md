@@ -28,7 +28,7 @@ To use Claude instead of the fake: `LLM_MODE=real LLM_API_KEY=… docker compose
 ### Tests
 
 ```bash
-make check          # ruff (incl. the import rules), format check, mypy --strict, pytest
+make check          # ruff (incl. the import rules), format check, mypy --strict, pytest with coverage (min. 90%)
 make test-offline   # the whole suite in a container with --network none
 ```
 

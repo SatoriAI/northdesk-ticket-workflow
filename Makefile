@@ -10,7 +10,7 @@ lint:
 	uv run mypy .
 
 test:
-	uv run pytest
+	uv run pytest --cov --cov-report=term-missing
 
 # The whole test suite in a container with networking off: proves the tests need no network once the Temporal
 # test server binary is in the image (the Dockerfile's test stage downloads it at build time).
