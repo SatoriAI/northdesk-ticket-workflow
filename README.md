@@ -4,7 +4,7 @@ A small Python service that processes support tickets with an agentic workflow o
 reads the ticket and proposes a decision through read-only tools, code validates it against the data, refunds wait
 for a person to approve them, and the action is carried out once through a deliberately unreliable helpdesk.
 
-**Status:** a recruitment assignment, complete for the brief's scope. It runs locally with Docker Compose in a
+**Status:** a recruitment assignment, complete for the assignment's scope. It runs locally with Docker Compose in a
 fake-LLM mode that needs no key. The real-LLM mode (Claude) is implemented and tested against a mocked API and
 against the live endpoint with an invalid key (one request, 401, escalation); it has not been run with a real key.
 
@@ -105,11 +105,10 @@ history of `(step, reason)` entries.
 | `northdesk/clients/` | outbound clients: the helpdesk, and the LLMs behind one `LlmClient` interface |
 | `northdesk/workflows/` | the workflow, activities, retry policies, the worker and the Temporal connection |
 | `northdesk/api/` | routes, request/response models, error handling |
-| `northdesk/data/` | the brief's JSON data and a read-only repository |
+| `northdesk/data/` | the assignment's sample data (JSON) and a read-only repository |
 | `helpdesk/` | the fake helpdesk, a separate service |
 
-The brief's suggested `services/` and `temporal/` are `agent/` + `clients/` and `workflows/` here, and its
-`logging.py` is `log.py`. The rule that business code does not depend on FastAPI, Temporal or the LLM provider is
+The rule that business code does not depend on FastAPI, Temporal or the LLM provider is
 enforced, not just intended: ruff's banned-imports check fails the build if `domain/` imports any of them (or the
 clock, randomness, logging or another layer), if anything but `api/` and the composition root `main.py` imports
 FastAPI, or if anything outside
@@ -191,7 +190,7 @@ Authentication would sit in front, through Entra ID or an API gateway; the API h
 
 ## 8. How AI coding assistants were used
 
-The code was written with an AI coding assistant, working in phases from a written brief, with a fresh reviewer
+The code was written with an AI coding assistant, working in phases from a written plan, with a fresh reviewer
 agent reviewing each phase against `main` before it merged. A running log of the assistant's mistakes and how
 each was caught was kept alongside. Real examples:
 
@@ -211,7 +210,7 @@ each was caught was kept alongside. Real examples:
   command still copied every field the model wrote. A reviewer built a reply carrying another customer's invoice and
   5000 EUR and showed both reaching the helpdesk body; each action now carries only the fields its rules checked.
 
-What worked: fixes proven both ways (the test fails without the fix), and reviewers that got only the brief and the
+What worked: fixes proven both ways (the test fails without the fix), and reviewers that got only the written plan and the
 code, not the author's explanation of it.
 
 ## 9. Assumptions, limitations, next steps
@@ -222,10 +221,10 @@ code, not the author's explanation of it.
 - `load_context` loads only this customer's invoices, so "the invoice exists" and "it belongs to the customer"
   collapse into one check in practice; the rule also checks ownership itself.
 - `POST /tickets` takes the whole ticket (any ticket can be submitted), not just an ID from `tickets.json`.
-- Python 3.14 rather than the brief's 3.12 ([ADR 0001](docs/adr/0001-python-3-14.md)); the code relies on 3.14's
-  deferred annotations. Money is `Decimal` end to end through a small Temporal data converter
+- Python 3.14 ([ADR 0001](docs/adr/0001-python-3-14.md)); the code relies on 3.14's deferred annotations. Money is `Decimal` end to end through a small Temporal data converter
   ([ADR 0002](docs/adr/0002-decimal-data-converter.md)).
-- Dependencies beyond the brief's list: pydantic-settings (settings), asgi-lifespan (API tests), ruff and mypy.
+- Dependencies: FastAPI, uvicorn, Temporal's Python SDK, httpx, pydantic and pydantic-settings, and the Anthropic
+  SDK for the real LLM; for development, pytest, pytest-asyncio, asgi-lifespan, ruff and mypy.
 
 **Limitations**
 
