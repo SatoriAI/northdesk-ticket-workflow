@@ -1,5 +1,11 @@
 # northdesk-ticket-workflow
 
+[![CI](https://github.com/SatoriAI/northdesk-ticket-workflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SatoriAI/northdesk-ticket-workflow/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/SatoriAI/northdesk-ticket-workflow/graph/badge.svg?token=jrUJAy5Bcp)](https://codecov.io/gh/SatoriAI/northdesk-ticket-workflow)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![mypy: strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy-lang.org/)
+
 A small Python service that processes support tickets with an agentic workflow on FastAPI and Temporal. An LLM
 reads the ticket and proposes a decision through read-only tools, code validates it against the data, refunds wait
 for a person to approve them, and the action is carried out once through a deliberately unreliable helpdesk.

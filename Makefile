@@ -12,7 +12,7 @@ lint:
 	uv run pre-commit run --all-files --show-diff-on-failure
 
 test:
-	uv run pytest --cov --cov-report=term-missing
+	uv run pytest --cov --cov-report=term-missing --cov-report=xml
 
 # The whole test suite in a container with networking off: proves the tests need no network once the Temporal
 # test server binary is in the image (the Dockerfile's test stage downloads it at build time).

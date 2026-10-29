@@ -20,6 +20,12 @@ jobs:
       - run: uv sync --locked
       # the pre-commit hooks on every file (hygiene, ruff with the import bans, mypy), then pytest with coverage
       - run: make check
+      # Defaults to fail_ci_if_error: false, so a Codecov outage cannot turn a green build red.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
 
   offline-tests:
     name: tests with networking off
