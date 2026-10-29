@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # Keeps the SHA pins in ci.yml current; a pin nobody bumps is just an old version.
+  # The Dockerfile (the docker ecosystem) is left out on purpose: it pins the same uv as setup-uv's `version:`
+  # input, which Dependabot never bumps, so a bump to the image alone would let the two drift apart.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # One pull request per round of bumps rather than one per action.
+      actions:
+        patterns: ["*"]
