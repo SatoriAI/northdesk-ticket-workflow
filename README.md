@@ -32,7 +32,8 @@ make check          # ruff (incl. the import rules), format check, mypy --strict
 make test-offline   # the whole suite in a container with --network none
 ```
 
-`make check` needs [uv](https://docs.astral.sh/uv/) (`uv sync` first). The workflow tests use Temporal's
+`make check` needs [uv](https://docs.astral.sh/uv/) (`uv sync` first). `uv run pre-commit install` adds the
+commit hooks: end-of-file and whitespace fixes, YAML/TOML/JSON checks, ruff (including import sorting) and mypy. The workflow tests use Temporal's
 time-skipping test server, which the SDK downloads on first use and caches. Set `TEMPORAL_TEST_SERVER_DIR` to a
 directory holding (or to receive) the binary to make that explicit; the test image downloads it there at build
 time, which is why `make test-offline` needs no network. CI (GitHub Actions) runs both on every push to `main` and

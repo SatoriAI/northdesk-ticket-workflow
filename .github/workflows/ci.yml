@@ -18,6 +18,8 @@ jobs:
         with:
           version: "0.11.12"
       - run: uv sync --locked
+      # end-of-file, whitespace and file-format hygiene, ruff and mypy, on every file
+      - run: uv run pre-commit run --all-files --show-diff-on-failure
       # ruff (import bans included), the format check, mypy --strict and pytest
       - run: make check
 
