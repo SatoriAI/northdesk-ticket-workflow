@@ -1,13 +1,15 @@
 .PHONY: check lint test test-offline
 
-# Everything CI runs: lint (including the import bans), formatting, types and the tests. Offline once the
-# Temporal test server binary is cached (see README).
+# Everything CI runs: the pre-commit hooks (file hygiene, ruff with the import bans, formatting, mypy) on every
+# file, then the tests with coverage. Needs the network only once, to fetch the hook repository and the Temporal
+# test server binary; both are cached afterwards.
 check: lint test
 
+# Defined once, in .pre-commit-config.yaml. Fixable problems (formatting, whitespace) are fixed and reported as a
+# failure, so a rerun passes and the diff shows what changed. Like CI, it checks the files git tracks: `git add` a
+# new file before relying on it being linted.
 lint:
-	uv run ruff check .
-	uv run ruff format --check .
-	uv run mypy .
+	uv run pre-commit run --all-files --show-diff-on-failure
 
 test:
 	uv run pytest --cov --cov-report=term-missing

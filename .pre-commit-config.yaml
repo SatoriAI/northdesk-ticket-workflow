@@ -1,4 +1,5 @@
-# `uv run pre-commit install` once; the hooks then run on every commit. CI runs them on every file.
+# The one definition of the lint step: `make lint` (and so `make check` and CI) runs these hooks on every file, and
+# `uv run pre-commit install` runs them on each commit's staged files.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -14,16 +15,19 @@ repos:
       - id: check-added-large-files
       - id: detect-private-key
 
-  # The same ruff as in uv.lock: lint (import sorting and the import bans included) and formatting.
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.3
-    hooks:
-      - id: ruff-check
-        args: [--fix]
-      - id: ruff-format
-
+  # Ruff and mypy run through uv, so the versions are the ones in uv.lock: there is no second pin to drift.
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff check (lint, import sorting, import bans)
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
       - id: mypy
         name: mypy --strict
         entry: uv run mypy .
