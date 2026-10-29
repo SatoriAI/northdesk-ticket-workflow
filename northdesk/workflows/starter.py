@@ -4,8 +4,8 @@ from temporalio.client import Client
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
-from northdesk.constants import workflow_id_for
 from northdesk.domain.models import Ticket
+from northdesk.workflow_ids import workflow_id_for
 from northdesk.workflows.contract import WORKFLOW_NAME
 
 

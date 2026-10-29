@@ -5,7 +5,7 @@ import logging
 
 from temporalio import activity, workflow
 
-from northdesk.constants import ticket_id_of
+from northdesk.workflow_ids import ticket_id_of
 
 
 class TemporalContextFilter(logging.Filter):

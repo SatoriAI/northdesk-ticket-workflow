@@ -11,10 +11,10 @@ from temporalio.service import RPCError, RPCStatusCode
 from northdesk.api.deps import SettingsDep, TemporalClientDep
 from northdesk.api.problems import problem_responses
 from northdesk.api.schemas import TICKET_ID_PATTERN, ApprovalIn, TicketAccepted, TicketIn, TicketStateOut
-from northdesk.constants import workflow_id_for
 from northdesk.domain.models import ApprovalRequest, Ticket, TicketState
 from northdesk.errors import DependencyUnavailableError, TicketNotAwaitingApprovalError, TicketNotFoundError
 from northdesk.log import bind_ticket
+from northdesk.workflow_ids import workflow_id_for
 from northdesk.workflows.contract import APPROVAL_UPDATE, NOT_AWAITING_APPROVAL, STATE_QUERY
 from northdesk.workflows.starter import start_ticket_workflow
 

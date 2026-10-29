@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from importlib import resources
 from typing import Any
 
-from northdesk.constants import workflow_id_for
+from northdesk.workflow_ids import workflow_id_for
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 # Set by the API once it knows which ticket a request is about; every line logged after that carries it.
