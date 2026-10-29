@@ -192,7 +192,11 @@ Authentication would sit in front, through Entra ID or an API gateway; the API h
 
 The code was written with an AI coding assistant, working in phases from a written plan, with a fresh reviewer
 agent reviewing each phase against `main` before it merged. A running log of the assistant's mistakes and how
-each was caught was kept alongside. Real examples:
+each was caught was kept alongside.
+
+My role was to own the plan and the judgement: I wrote the plan and its constraints (the scope, the architecture
+rules, the definition of done for each phase), reviewed every phase and every reviewer finding, and made the final
+call on what to accept and what to reject. Real examples of what the process caught:
 
 - **A fix that created a worse bug.** A reviewer pointed out that a JSON number decoded as a `Decimal` goes through
   float, and the assistant changed the data converter to refuse numbers. The next review ran the workflow with a
